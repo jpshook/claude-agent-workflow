@@ -19,6 +19,7 @@ Select models based on the `--model-profile` flag (default: `default`):
 
 | Agent | prototype | default | enterprise |
 |-------|-----------|---------|------------|
+| spec-estimator | haiku | haiku | haiku |
 | spec-scanner | haiku | haiku | haiku |
 | spec-analyst | haiku | sonnet | sonnet |
 | spec-architect | sonnet | opus | opus |
@@ -28,8 +29,10 @@ Select models based on the `--model-profile` flag (default: `default`):
 | spec-reviewer | haiku | sonnet | sonnet |
 | spec-security | — | sonnet | sonnet |
 | spec-validator | haiku | sonnet | sonnet |
+| spec-deployer | haiku | sonnet | sonnet |
+| spec-documenter | haiku | sonnet | sonnet |
 
-> Note: In `prototype` mode, spec-security is skipped. In `enterprise` mode, a human checkpoint is added after Gate 1 and Gate 3.
+> Note: In `prototype` mode, spec-security is skipped. In `enterprise` mode, a human checkpoint is added after Gate 1 and Gate 3. spec-estimator always runs (unless skipped) and produces a checkpoint in enterprise mode.
 
 ---
 
@@ -38,6 +41,9 @@ Select models based on the `--model-profile` flag (default: `default`):
 ```
 [INPUT FLAGS]
      │
+     ▼
+[spec-estimator] → docs/{date}/plans/estimate.md
+     │              (enterprise: human checkpoint — proceed Y/N?)
      ▼
 [spec-scanner]  ← only in --mode=existing
      │ codebase-context.md
@@ -73,6 +79,14 @@ Select models based on the `--model-profile` flag (default: `default`):
      │ PASS
      ▼
 [spec-validator] → docs/{date}/telemetry/validation-report.md
+     ▼
+[spec-deployer]  → Dockerfile, docker-compose.yml, CI/CD configs,
+     │             .env.example, Makefile
+     │             docs/{date}/telemetry/deploy-summary.md
+     ▼
+[spec-documenter] → README.md (updated),
+                    docs/{date}/docs/developer-guide.md,
+                    docs/{date}/docs/runbook.md
      │
      ▼
   DONE ✅
@@ -104,7 +118,7 @@ Store parsed flags in `workflow-state.json` (see State Tracking section).
 
 ## Execution Steps
 
-### Step 0 — Initialise State
+### Step 0 — Initialise State (and run estimator)
 
 Create or read `workflow-state.json` in the project root:
 
@@ -128,6 +142,17 @@ Create or read `workflow-state.json` in the project root:
 ```
 
 Set `locked_artifacts` from any `--input-*` flags provided. These paths are passed directly to relevant agents and must not be overwritten.
+
+After initialising state, run the estimator (unless `--skip-agent=spec-estimator`):
+
+```
+Use the spec-estimator sub agent to estimate effort and complexity for: [{feature}].
+Pass context: mode={mode}, and any --input-* documents provided.
+```
+
+Read `docs/{date}/plans/estimate.md`. Display the **Complexity Summary** and **Phase Effort Estimates** to the user as a brief heads-up before proceeding.
+
+**Enterprise human checkpoint:** If `--model-profile=enterprise`, pause after displaying the estimate and ask: "Proceed with the full pipeline? (Y/N)". If the user declines, stop here — the estimate.md is the deliverable.
 
 ---
 
@@ -266,7 +291,27 @@ Read the `gate_result` YAML block from `docs/{date}/telemetry/validation-report.
 
 ---
 
-### Step 8 — Completion
+### Step 8 — Post-Validation (Deployment & Docs)
+
+Run sequentially (unless skipped with `--skip-agent`):
+
+**8a. spec-deployer**
+```
+Use the spec-deployer sub agent to generate deployment configuration for the project.
+Pass context: mode={mode}, codebase-context={path if existing}.
+```
+
+**8b. spec-documenter**
+```
+Use the spec-documenter sub agent to produce README, developer guide, and runbook.
+Pass context: mode={mode}, codebase-context={path if existing}.
+```
+
+spec-documenter has `background: true` but runs after spec-deployer since it references the deploy config. Do not run them concurrently.
+
+---
+
+### Step 9 — Completion
 
 Update `workflow-state.json`:
 ```json
@@ -298,6 +343,7 @@ Write telemetry summary to `docs/{date}/telemetry/run-summary.md`:
 | Gate 3 (Release) | 90% | 92% | ✅ PASS |
 
 ## Agents Executed
+- spec-estimator (1 iteration)
 - spec-scanner (existing mode only)
 - spec-analyst (1 iteration)
 - spec-architect (1 iteration)
@@ -307,8 +353,11 @@ Write telemetry summary to `docs/{date}/telemetry/run-summary.md`:
 - spec-reviewer (1 iteration)
 - spec-security (1 iteration)
 - spec-validator (2 iterations)
+- spec-deployer (1 iteration)
+- spec-documenter (1 iteration)
 
 ## Artifacts Produced
+- docs/{date}/plans/estimate.md
 - docs/{date}/specs/requirements.md
 - docs/{date}/specs/user-stories.md
 - docs/{date}/design/architecture.md
@@ -319,9 +368,16 @@ Write telemetry summary to `docs/{date}/telemetry/run-summary.md`:
 - docs/{date}/reviews/code-review.md
 - docs/{date}/reviews/security-report.md
 - docs/{date}/telemetry/validation-report.md
+- docs/{date}/telemetry/deploy-summary.md
+- docs/{date}/docs/developer-guide.md
+- docs/{date}/docs/runbook.md
 - docs/{date}/telemetry/run-summary.md
 - src/ (implementation)
 - tests/ (test suite)
+- Dockerfile, docker-compose.yml, .env.example
+- .github/workflows/ci.yml, .github/workflows/deploy.yml
+- Makefile
+- README.md (updated)
 ```
 
 Present the summary to the user with a clear ✅ DONE or ⚠️ BLOCKED status.

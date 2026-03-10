@@ -12,12 +12,15 @@ Claude Sub-Agent Spec Workflow System - A comprehensive AI-driven development wo
 
 | Document Type | Path | Example |
 |---------------|------|---------|
+| Effort estimates | `docs/{YYYY_MM_DD}/plans/` | `docs/2026_03_09/plans/estimate.md` |
 | Requirements & user stories | `docs/{YYYY_MM_DD}/specs/` | `docs/2026_03_09/specs/requirements.md` |
 | Architecture, API spec, ADRs | `docs/{YYYY_MM_DD}/design/` | `docs/2026_03_09/design/architecture.md` |
 | Task plans & test plans | `docs/{YYYY_MM_DD}/plans/` | `docs/2026_03_09/plans/tasks.md` |
 | Test results | `docs/{YYYY_MM_DD}/plans/` | `docs/2026_03_09/plans/test-results.md` |
 | Code review & security reports | `docs/{YYYY_MM_DD}/reviews/` | `docs/2026_03_09/reviews/code-review.md` |
 | Validation reports & telemetry | `docs/{YYYY_MM_DD}/telemetry/` | `docs/2026_03_09/telemetry/validation-report.md` |
+| Deployment summary | `docs/{YYYY_MM_DD}/telemetry/` | `docs/2026_03_09/telemetry/deploy-summary.md` |
+| Developer guide & runbook | `docs/{YYYY_MM_DD}/docs/` | `docs/2026_03_09/docs/developer-guide.md` |
 | ADR records | `docs/{YYYY_MM_DD}/design/adrs/` | `docs/2026_03_09/design/adrs/ADR-001-database-choice.md` |
 
 - **Code Files:** Place in the appropriate `src/` sub-folder as defined in `architecture.md`.
@@ -91,6 +94,10 @@ cp commands/agent-workflow.md .claude/commands/
 
 The system follows a three-phase approach with quality gates:
 
+0. **Pre-planning (optional)**
+   - spec-estimator: Effort and complexity estimate → `docs/{date}/plans/estimate.md`
+   - *(enterprise: human checkpoint — proceed Y/N before committing to full run)*
+
 1. **Planning Phase (20-25% of project time)**
    - spec-scanner *(existing mode only)*: Codebase analysis → `codebase-context.md`
    - spec-analyst: Requirements analysis and user stories → `docs/{date}/specs/`
@@ -110,12 +117,17 @@ The system follows a three-phase approach with quality gates:
    - **Gate 3**: ≥ 90% — release readiness
    - spec-validator: Final scoring and approval → `docs/{date}/telemetry/`
 
+4. **Delivery Phase**
+   - spec-deployer: Dockerfile, CI/CD configs, `.env.example`, Makefile → project root + `docs/{date}/telemetry/`
+   - spec-documenter: README, developer guide, runbook → project root + `docs/{date}/docs/`
+
 ### Agent Categories
 
 **Workflow Agents (`agents/spec-agents/`)**
 
 - spec-orchestrator: Execution controller — agent sequencing, gate enforcement, state tracking
-- spec-scanner: Read-only codebase analysis for existing projects (produces `codebase-context.md`)
+- spec-estimator: Pre-planning effort and complexity estimator (model: haiku)
+- spec-scanner: Read-only codebase analysis for existing projects (produces `codebase-context.md`, model: haiku)
 - spec-analyst: Requirements analysis specialist (model: sonnet)
 - spec-architect: System architecture designer (model: opus)
 - spec-planner: Task breakdown and test planning (model: haiku)
@@ -124,6 +136,8 @@ The system follows a three-phase approach with quality gates:
 - spec-reviewer: Code review, ADR compliance, structural refactoring flag (model: sonnet)
 - spec-security: OWASP Top 10 security auditor (model: sonnet)
 - spec-validator: Final go/no-go scoring with structured feedback routing (model: sonnet)
+- spec-deployer: Deployment config generator — Dockerfile, CI/CD, .env.example, Makefile (model: sonnet)
+- spec-documenter: README, developer guide, and runbook generator (model: sonnet)
 
 **Domain Specialists**
 
@@ -216,10 +230,10 @@ The `/agent-workflow` command provides one-command execution of the entire devel
 The full pipeline managed by spec-orchestrator:
 
 ```
-spec-scanner (existing mode) → spec-analyst → spec-architect → spec-planner
+spec-estimator → spec-scanner (existing mode) → spec-analyst → spec-architect → spec-planner
   → [Gate 1 ≥95%] → spec-developer → spec-tester
   → [Gate 2 ≥85%] → spec-reviewer → refactor-agent? → spec-security
-  → [Gate 3 ≥90%] → spec-validator → DONE
+  → [Gate 3 ≥90%] → spec-validator → spec-deployer → spec-documenter → DONE
 ```
 
 ### Quality Gate Mechanism

@@ -23,14 +23,16 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
 
 ### Key Features
 
-- **Automated Workflow**: Complete development pipeline from idea to production-ready code
+- **Automated Workflow**: Complete pipeline from idea to deployed, documented, production-ready code
 - **Greenfield & Existing Codebases**: Full support for new projects and extending existing ones
 - **Smart Model Selection**: Configurable model profiles (prototype / default / enterprise) to balance cost and quality
 - **Quality Gates**: Three automated checkpoints (95% / 85% / 90%) with structured feedback routing
 - **Security Audit**: Built-in OWASP Top 10 assessment via spec-security
 - **ADR Enforcement**: Architecture Decision Records are tracked and enforced across all agents
+- **Deployment Ready**: spec-deployer generates Dockerfile, CI/CD pipelines, and .env.example automatically
+- **Auto-Documentation**: spec-documenter produces README, developer guide, and runbook from pipeline artifacts
+- **Effort Estimation**: spec-estimator gives a complexity and effort estimate before committing to a full run
 - **Resumable Runs**: `workflow-state.json` allows interrupted runs to continue from the last checkpoint
-- **Comprehensive Artifacts**: Every phase produces structured, dated documentation
 
 ### Benefits
 
@@ -45,6 +47,9 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
 ```
 [Input Flags & Feature Description]
           │
+          ▼
+  spec-estimator → docs/{date}/plans/estimate.md
+          │         (enterprise: human checkpoint — proceed Y/N?)
           ▼
    spec-scanner ← (existing mode only) produces codebase-context.md
           │
@@ -83,6 +88,15 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
   spec-validator → docs/{date}/telemetry/validation-report.md
           │         docs/{date}/telemetry/run-summary.md
           ▼
+  spec-deployer → Dockerfile, docker-compose.yml, .env.example
+          │        .github/workflows/ci.yml + deploy.yml, Makefile
+          │        docs/{date}/telemetry/deploy-summary.md
+          ▼
+ spec-documenter → README.md (updated)
+                   docs/{date}/docs/developer-guide.md
+                   docs/{date}/docs/runbook.md
+          │
+          ▼
        DONE ✅
 ```
 
@@ -103,19 +117,27 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
    cd claude-sub-agent
    ```
 
-2. **Copy agents and slash command to your project**
+2. **Run the setup script** (recommended)
+
+   ```bash
+   # Install into current directory
+   bash scripts/setup.sh
+
+   # Or install into a specific project
+   bash scripts/setup.sh /path/to/your/project
+   ```
+
+   The script copies all agents, copies the slash command, validates frontmatter, and adds documentation conventions to `CLAUDE.md` automatically.
+
+   **Manual installation** (if you prefer):
 
    ```bash
    mkdir -p .claude/agents .claude/commands
-
-   # Copy all agents (maintains directory structure)
    cp agents/spec-agents/*.md .claude/agents/
    cp agents/backend/*.md .claude/agents/
    cp agents/frontend/*.md .claude/agents/
    cp agents/ui-ux/*.md .claude/agents/
    cp agents/utility/*.md .claude/agents/
-
-   # Copy slash command
    cp commands/agent-workflow.md .claude/commands/
    ```
 
@@ -142,6 +164,7 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
    ├── agents/
    │   ├── spec-agents/
    │   │   ├── spec-orchestrator.md   # Execution controller
+   │   │   ├── spec-estimator.md      # Pre-planning effort estimator
    │   │   ├── spec-scanner.md        # Codebase analysis (existing mode)
    │   │   ├── spec-analyst.md        # Requirements analysis
    │   │   ├── spec-architect.md      # System architecture
@@ -150,7 +173,9 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
    │   │   ├── spec-tester.md         # Test writing & execution
    │   │   ├── spec-reviewer.md       # Code review + ADR compliance
    │   │   ├── spec-security.md       # OWASP security audit
-   │   │   └── spec-validator.md      # Final gate scoring
+   │   │   ├── spec-validator.md      # Final gate scoring
+   │   │   ├── spec-deployer.md       # Dockerfile, CI/CD, .env.example
+   │   │   └── spec-documenter.md     # README, dev guide, runbook
    │   ├── backend/
    │   │   └── senior-backend-architect.md
    │   ├── frontend/
@@ -161,6 +186,10 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
    │       └── refactor-agent.md
    ├── commands/
    │   └── agent-workflow.md
+   ├── scripts/
+   │   ├── setup.sh               # Install agents into a project
+   │   ├── validate-agents.sh     # Check agent frontmatter
+   │   └── cleanup-worktrees.sh   # Remove stale git worktrees
    └── CLAUDE.md
    ```
 
@@ -215,6 +244,10 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
 
 ## How It Works
 
+### Phase 0 — Estimation
+
+**spec-estimator** *(model: haiku, always runs unless skipped)*: Assesses complexity across five dimensions (scope, integration, data, frontend, risk) and produces a concise `estimate.md` with effort ranges per phase and a recommended model profile. The orchestrator displays this as a brief heads-up before proceeding. In enterprise profile it becomes a human checkpoint — the user can stop here if the scope is larger than expected.
+
 ### Phase 1 — Planning
 
 1. **spec-scanner** *(existing mode only, model: haiku)*: Scans the codebase to produce `codebase-context.md` — tech stack, conventions, patterns, ADRs, and open TODOs. Read-only; does not modify any files.
@@ -236,6 +269,12 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
 11. **spec-security** *(model: sonnet, skipped in prototype)*: Systematic OWASP Top 10 audit with severity-rated findings and remediation guidance.
 12. **Gate 3** (≥ 90%): spec-validator scores release readiness; feedback routed on failure.
 13. **spec-validator** produces final `validation-report.md` and `run-summary.md`.
+
+### Phase 4 — Delivery
+
+14. **spec-deployer** *(model: sonnet)*: Reads architecture.md and the tech stack, detects the deployment target (container, serverless, static), and generates `Dockerfile`, `docker-compose.yml`, `.env.example` (by scanning source files for all env var references), `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`, and a `Makefile` with common operations. In existing mode, adds new workflow files rather than overwriting existing ones.
+
+15. **spec-documenter** *(model: sonnet)*: Synthesises all pipeline artifacts into `README.md` (updated), `developer-guide.md` (setup, conventions, ADR summary, common tasks), and `runbook.md` (deployment steps, health checks, incident playbook). In existing mode, makes surgical additions rather than replacing the whole README.
 
 ### Agent Communication
 
@@ -266,6 +305,7 @@ The orchestrator reads this and re-runs only the specific agents that need to ad
 | Agent | Model | Purpose | Key Output |
 |-------|-------|---------|------------|
 | spec-orchestrator | sonnet | Execution controller; sequences all agents | `workflow-state.json`, `run-summary.md` |
+| spec-estimator | haiku | Pre-planning effort and complexity estimate | `docs/{date}/plans/estimate.md` |
 | spec-scanner | haiku | Read-only codebase analysis for existing projects | `codebase-context.md` |
 | spec-analyst | sonnet | Requirements analysis and user stories | `docs/{date}/specs/` |
 | spec-architect | opus | System architecture, API design, ADRs | `docs/{date}/design/` |
@@ -275,6 +315,8 @@ The orchestrator reads this and re-runs only the specific agents that need to ad
 | spec-reviewer | sonnet | Code review, ADR compliance, refactoring flag | `docs/{date}/reviews/code-review.md` |
 | spec-security | sonnet | OWASP Top 10 security audit | `docs/{date}/reviews/security-report.md` |
 | spec-validator | sonnet | Final gate scoring + structured feedback | `docs/{date}/telemetry/` |
+| spec-deployer | sonnet | Dockerfile, CI/CD, .env.example, Makefile | Project root + `docs/{date}/telemetry/deploy-summary.md` |
+| spec-documenter | sonnet | README, developer guide, runbook | Project root + `docs/{date}/docs/` |
 
 ### Specialist & Utility Agents
 
@@ -409,6 +451,22 @@ jobs:
             --mode existing
 ```
 
+### Utility Scripts
+
+```bash
+# Install agents into a project (interactive, validates frontmatter)
+bash scripts/setup.sh [/path/to/project]
+
+# Validate all agent frontmatter (useful before committing new agents)
+bash scripts/validate-agents.sh                  # check ./agents/
+bash scripts/validate-agents.sh .claude/agents/  # check installed agents
+
+# Remove stale git worktrees left by interrupted spec-developer runs
+bash scripts/cleanup-worktrees.sh                # interactive
+bash scripts/cleanup-worktrees.sh --dry-run      # preview only
+bash scripts/cleanup-worktrees.sh --all          # remove all without prompting
+```
+
 ### Extending the System
 
 To add a new specialist agent:
@@ -476,3 +534,4 @@ For more information, see:
 
 - [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code)
 - [Sub-Agents Guide](https://docs.anthropic.com/en/docs/claude-code/sub-agents)
+- [Project Issues](https://github.com/zhsama/claude-sub-agent/issues)

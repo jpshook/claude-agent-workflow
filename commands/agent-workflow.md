@@ -43,6 +43,8 @@ Pass your feature description as the argument, optionally with flags:
 ## Pipeline (Full Run)
 
 ```
+spec-estimator → estimate.md   [enterprise: human checkpoint to proceed]
+      ↓
 spec-scanner (existing mode only)
       ↓
 spec-analyst → requirements.md, user-stories.md
@@ -67,6 +69,10 @@ spec-security → security-report.md   [skipped in prototype]
       ↓ PASS
 spec-validator → validation-report.md
       ↓
+spec-deployer → Dockerfile, docker-compose.yml, CI/CD configs, .env.example, Makefile
+      ↓
+spec-documenter → README.md, developer-guide.md, runbook.md
+      ↓
  ── DONE ✅ ──
 ```
 
@@ -84,6 +90,8 @@ All agent artifacts are saved under `docs/{YYYY_MM_DD}/`:
 
 | Agent | Output Path |
 |-------|------------|
+| spec-estimator | `docs/{date}/plans/estimate.md` |
+| spec-scanner | `codebase-context.md` (project root) |
 | spec-analyst | `docs/{date}/specs/requirements.md`, `docs/{date}/specs/user-stories.md` |
 | spec-architect | `docs/{date}/design/architecture.md`, `docs/{date}/design/api-spec.md`, `docs/{date}/design/adrs/` |
 | spec-planner | `docs/{date}/plans/tasks.md`, `docs/{date}/plans/test-plan.md` |
@@ -91,7 +99,8 @@ All agent artifacts are saved under `docs/{YYYY_MM_DD}/`:
 | spec-reviewer | `docs/{date}/reviews/code-review.md` |
 | spec-security | `docs/{date}/reviews/security-report.md` |
 | spec-validator | `docs/{date}/telemetry/validation-report.md`, `docs/{date}/telemetry/run-summary.md` |
-| spec-scanner | `codebase-context.md` (project root) |
+| spec-deployer | `Dockerfile`, `docker-compose.yml`, `.env.example`, `.github/workflows/`, `Makefile`, `docs/{date}/telemetry/deploy-summary.md` |
+| spec-documenter | `README.md`, `docs/{date}/docs/developer-guide.md`, `docs/{date}/docs/runbook.md` |
 
 ## Execution
 
