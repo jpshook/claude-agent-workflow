@@ -1,0 +1,478 @@
+# Claude Sub-Agent Spec Workflow System
+
+A comprehensive AI-driven development workflow system built on Claude Code's Sub-Agents feature. This system transforms project ideas into production-ready code through specialized AI agents working in coordinated phases — with full support for both greenfield projects and extending existing codebases.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [System Architecture](#system-architecture)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Slash Command Usage](#slash-command-usage)
+- [How It Works](#how-it-works)
+- [Agent Reference](#agent-reference)
+- [Usage Examples](#usage-examples)
+- [Quality Gates](#quality-gates)
+- [Best Practices](#best-practices)
+- [Advanced Usage](#advanced-usage)
+- [Troubleshooting](#troubleshooting)
+
+## Overview
+
+The Spec Workflow System leverages Claude Code's Sub-Agents capability to create a multi-agent development pipeline. Each agent is a specialized expert that handles specific aspects of the software development lifecycle, from requirements analysis to final security audit and validation.
+
+### Key Features
+
+- **Automated Workflow**: Complete development pipeline from idea to production-ready code
+- **Greenfield & Existing Codebases**: Full support for new projects and extending existing ones
+- **Smart Model Selection**: Configurable model profiles (prototype / default / enterprise) to balance cost and quality
+- **Quality Gates**: Three automated checkpoints (95% / 85% / 90%) with structured feedback routing
+- **Security Audit**: Built-in OWASP Top 10 assessment via spec-security
+- **ADR Enforcement**: Architecture Decision Records are tracked and enforced across all agents
+- **Resumable Runs**: `workflow-state.json` allows interrupted runs to continue from the last checkpoint
+- **Comprehensive Artifacts**: Every phase produces structured, dated documentation
+
+### Benefits
+
+- Faster development from concept to code through coordinated agent specialisation
+- Consistent quality through automated gate enforcement with per-agent feedback routing
+- Security baked in, not bolted on — OWASP assessment before final sign-off
+- Existing codebases preserved — convention detection prevents style drift
+- Full traceability from requirement through test to deployment
+
+## System Architecture
+
+```
+[Input Flags & Feature Description]
+          │
+          ▼
+   spec-scanner ← (existing mode only) produces codebase-context.md
+          │
+          ▼
+   spec-analyst → docs/{date}/specs/requirements.md
+          │         docs/{date}/specs/user-stories.md
+          ▼
+  spec-architect → docs/{date}/design/architecture.md
+          │         docs/{date}/design/api-spec.md
+          │         docs/{date}/design/adrs/
+          ▼
+   spec-planner → docs/{date}/plans/tasks.md
+          │        docs/{date}/plans/test-plan.md
+          ▼
+   ── GATE 1 (≥ 95%) ──
+          │ PASS
+          ▼
+  spec-developer → src/  (worktree isolated)
+          │
+          ▼
+   spec-tester → tests/
+          │       docs/{date}/plans/test-results.md
+          ▼
+   ── GATE 2 (≥ 85%) ──
+          │ PASS
+          ▼
+  spec-reviewer → docs/{date}/reviews/code-review.md
+          │
+          ├── structural issues? → refactor-agent (background)
+          ▼
+  spec-security → docs/{date}/reviews/security-report.md
+          ▼
+   ── GATE 3 (≥ 90%) ──
+          │ PASS
+          ▼
+  spec-validator → docs/{date}/telemetry/validation-report.md
+          │         docs/{date}/telemetry/run-summary.md
+          ▼
+       DONE ✅
+```
+
+## Installation
+
+### Prerequisites
+
+- Claude Code (latest version)
+- Project directory initialised
+- Git repository (recommended, required for `isolation: worktree` on spec-developer)
+
+### Setup Steps
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/zhsama/claude-sub-agent.git
+   cd claude-sub-agent
+   ```
+
+2. **Copy agents and slash command to your project**
+
+   ```bash
+   mkdir -p .claude/agents .claude/commands
+
+   # Copy all agents (maintains directory structure)
+   cp agents/spec-agents/*.md .claude/agents/
+   cp agents/backend/*.md .claude/agents/
+   cp agents/frontend/*.md .claude/agents/
+   cp agents/ui-ux/*.md .claude/agents/
+   cp agents/utility/*.md .claude/agents/
+
+   # Copy slash command
+   cp commands/agent-workflow.md .claude/commands/
+   ```
+
+3. **Add documentation path conventions to your CLAUDE.md**
+
+   ```markdown
+   ## Project Documentation Conventions
+
+   All agent-generated documentation is saved under `docs/{YYYY_MM_DD}/`:
+
+   | Document Type | Path |
+   |---------------|------|
+   | Requirements & user stories | `docs/{YYYY_MM_DD}/specs/` |
+   | Architecture, API spec, ADRs | `docs/{YYYY_MM_DD}/design/` |
+   | Task plans & test plans | `docs/{YYYY_MM_DD}/plans/` |
+   | Code review & security reports | `docs/{YYYY_MM_DD}/reviews/` |
+   | Validation reports & telemetry | `docs/{YYYY_MM_DD}/telemetry/` |
+   ```
+
+4. **Verify installation — repository structure**
+
+   ```
+   claude-sub-agent/
+   ├── agents/
+   │   ├── spec-agents/
+   │   │   ├── spec-orchestrator.md   # Execution controller
+   │   │   ├── spec-scanner.md        # Codebase analysis (existing mode)
+   │   │   ├── spec-analyst.md        # Requirements analysis
+   │   │   ├── spec-architect.md      # System architecture
+   │   │   ├── spec-planner.md        # Task planning
+   │   │   ├── spec-developer.md      # Code implementation
+   │   │   ├── spec-tester.md         # Test writing & execution
+   │   │   ├── spec-reviewer.md       # Code review + ADR compliance
+   │   │   ├── spec-security.md       # OWASP security audit
+   │   │   └── spec-validator.md      # Final gate scoring
+   │   ├── backend/
+   │   │   └── senior-backend-architect.md
+   │   ├── frontend/
+   │   │   └── senior-frontend-architect.md
+   │   ├── ui-ux/
+   │   │   └── ui-ux-master.md
+   │   └── utility/
+   │       └── refactor-agent.md
+   ├── commands/
+   │   └── agent-workflow.md
+   └── CLAUDE.md
+   ```
+
+## Quick Start
+
+```bash
+# New greenfield project
+/agent-workflow "Create a todo list web application with user authentication"
+
+# Extend an existing codebase
+/agent-workflow "Add OAuth2 login" --mode=existing
+
+# Existing project with pre-existing architecture and ADR docs
+/agent-workflow "Add reporting module" --mode=existing \
+  --input-architecture=./ARCHITECTURE.md \
+  --input-adr=./docs/adrs/
+
+# Enterprise project with human review checkpoints
+/agent-workflow "Enterprise CRM with multi-tenancy" --model-profile=enterprise
+
+# Quick prototype — fast and cheap, no security scan
+/agent-workflow "Proof of concept" --model-profile=prototype
+
+# Planning phase only (generate specs without writing code)
+/agent-workflow "E-commerce platform" --phase=planning
+```
+
+## Slash Command Usage
+
+### All Supported Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--mode` | `greenfield` | `greenfield` \| `existing` |
+| `--model-profile` | `default` | `prototype` \| `default` \| `enterprise` |
+| `--quality` | `85` | Override Gate 2 threshold (70–99) |
+| `--input-requirements` | — | Pre-existing requirements doc → spec-analyst |
+| `--input-architecture` | — | Pre-existing ARCHITECTURE.md → spec-architect |
+| `--input-adr` | — | ADR directory or file → all agents for compliance |
+| `--input-tech-stack` | — | Tech stack constraints → spec-architect + spec-developer |
+| `--input-constraints` | — | Any additional constraint document |
+| `--skip-agent` | — | Skip a named agent (comma-separated) |
+| `--phase` | full run | `planning` \| `development` \| `validation` |
+
+### Model Profiles
+
+| Profile | Models Used | Security Scan | Human Checkpoints | Best For |
+|---------|------------|--------------|-------------------|---------|
+| `prototype` | haiku-heavy | ❌ skipped | End only | Fast MVPs, quick POCs |
+| `default` | opus (architect), sonnet (others) | ✅ | None | Most projects |
+| `enterprise` | sonnet/opus throughout | ✅ | After Gate 1 + Gate 3 | Production, compliance-sensitive |
+
+## How It Works
+
+### Phase 1 — Planning
+
+1. **spec-scanner** *(existing mode only, model: haiku)*: Scans the codebase to produce `codebase-context.md` — tech stack, conventions, patterns, ADRs, and open TODOs. Read-only; does not modify any files.
+2. **spec-analyst** *(model: sonnet)*: Analyses requirements and produces `requirements.md` and `user-stories.md`. In existing mode, extends rather than replaces existing requirements.
+3. **spec-architect** *(model: opus)*: Designs system architecture, API contracts, and Architecture Decision Records. In existing mode, reads locked context and existing ADRs.
+4. **spec-planner** *(model: haiku)*: Breaks requirements into tasks. In existing mode, tags each task as `[NEW]`, `[MODIFY]`, or `[INTEGRATE]`.
+5. **Gate 1** (≥ 95%): Orchestrator checks artifact completeness before proceeding.
+
+### Phase 2 — Development
+
+6. **spec-developer** *(model: sonnet, worktree isolated)*: Implements tasks. In existing mode, reads `codebase-context.md` and matches naming/style conventions. Runs linter after each file.
+7. **spec-tester** *(model: haiku, background)*: Writes and executes tests. Detects existing test framework in existing mode. Reports coverage.
+8. **Gate 2** (≥ 85%): spec-validator scores development quality; feedback is routed to specific agents on failure.
+
+### Phase 3 — Validation
+
+9. **spec-reviewer** *(model: sonnet)*: Code quality, ADR compliance, sets `structural-refactoring-needed` flag if architectural drift is detected.
+10. **refactor-agent** *(model: haiku, background — only if flagged)*: Structural refactoring on targeted files.
+11. **spec-security** *(model: sonnet, skipped in prototype)*: Systematic OWASP Top 10 audit with severity-rated findings and remediation guidance.
+12. **Gate 3** (≥ 90%): spec-validator scores release readiness; feedback routed on failure.
+13. **spec-validator** produces final `validation-report.md` and `run-summary.md`.
+
+### Agent Communication
+
+Agents communicate through structured file artifacts. Each agent reads the outputs of previous agents and produces its own outputs to `docs/{YYYY_MM_DD}/`. The orchestrator maintains `workflow-state.json` to track progress and enable resumable runs.
+
+When a gate fails, spec-validator produces a structured YAML feedback block:
+
+```yaml
+gate_result:
+  gate: 2
+  score: 78
+  threshold: 85
+  passed: false
+
+feedback_routing:
+  spec-developer:
+    - "FR-004 WebSocket feature not implemented"
+  spec-tester:
+    - "Integration tests for /api/orders are missing"
+```
+
+The orchestrator reads this and re-runs only the specific agents that need to address the feedback — not the entire pipeline.
+
+## Agent Reference
+
+### Core Workflow Agents (spec-agents/)
+
+| Agent | Model | Purpose | Key Output |
+|-------|-------|---------|------------|
+| spec-orchestrator | sonnet | Execution controller; sequences all agents | `workflow-state.json`, `run-summary.md` |
+| spec-scanner | haiku | Read-only codebase analysis for existing projects | `codebase-context.md` |
+| spec-analyst | sonnet | Requirements analysis and user stories | `docs/{date}/specs/` |
+| spec-architect | opus | System architecture, API design, ADRs | `docs/{date}/design/` |
+| spec-planner | haiku | Task breakdown and test planning | `docs/{date}/plans/` |
+| spec-developer | sonnet | Code implementation (worktree isolated) | `src/` |
+| spec-tester | haiku | Write and execute tests | `tests/`, `docs/{date}/plans/test-results.md` |
+| spec-reviewer | sonnet | Code review, ADR compliance, refactoring flag | `docs/{date}/reviews/code-review.md` |
+| spec-security | sonnet | OWASP Top 10 security audit | `docs/{date}/reviews/security-report.md` |
+| spec-validator | sonnet | Final gate scoring + structured feedback | `docs/{date}/telemetry/` |
+
+### Specialist & Utility Agents
+
+| Agent | Model | Category | When to Use |
+|-------|-------|---------|-------------|
+| senior-backend-architect | opus | backend/ | Deep Go/TypeScript backend design alongside spec-architect |
+| senior-frontend-architect | opus | frontend/ | Deep React/Next.js frontend design alongside spec-developer |
+| ui-ux-master | sonnet | ui-ux/ | UI/UX design specs before spec-developer builds the frontend |
+| refactor-agent | haiku | utility/ | Structural refactoring — triggered automatically by spec-reviewer flag |
+
+## Usage Examples
+
+### Example 1: New Greenfield Project
+
+```bash
+/agent-workflow "Create a personal blog platform with markdown support, user comments, and admin panel"
+```
+
+Workflow: spec-analyst → spec-architect → spec-planner → Gate 1 → spec-developer → spec-tester → Gate 2 → spec-reviewer → spec-security → Gate 3 → spec-validator
+
+Outputs: Full source code, 85%+ test coverage, OWASP-audited, dated docs in `docs/2026_03_09/`.
+
+### Example 2: Extending an Existing Codebase
+
+```bash
+/agent-workflow "Add Google OAuth2 login alongside existing email/password auth" \
+  --mode=existing \
+  --input-architecture=./ARCHITECTURE.md \
+  --input-adr=./docs/adrs/
+```
+
+spec-scanner first maps the existing tech stack and conventions. All subsequent agents read `codebase-context.md` and match existing patterns exactly. ADR violations are flagged as Critical issues in the review.
+
+### Example 3: Enterprise System
+
+```bash
+/agent-workflow "Enterprise CRM with multi-tenancy, RBAC, and real-time analytics" \
+  --model-profile=enterprise \
+  --quality=90
+```
+
+Uses opus/sonnet throughout. Human checkpoint after Gate 1 (review specs before any code is written) and Gate 3 (final sign-off before deployment approval).
+
+### Example 4: Quick Prototype
+
+```bash
+/agent-workflow "Simple landing page with email capture" \
+  --model-profile=prototype \
+  --quality=75
+```
+
+haiku-heavy model selection. spec-security skipped. Fast and cost-effective for throwaway prototypes.
+
+### Example 5: Planning Phase Only
+
+```bash
+/agent-workflow "Microservices e-commerce platform" --phase=planning
+```
+
+Runs spec-analyst → spec-architect → spec-planner → Gate 1. Produces full documentation without writing any code. Useful for reviewing the plan before committing to implementation.
+
+## Quality Gates
+
+| Gate | After | Threshold | Score Categories | On Fail |
+|------|-------|-----------|-----------------|---------|
+| **Gate 1** | spec-planner | **≥ 95%** | Planning artifact completeness | Re-run planning agents (max 3×) |
+| **Gate 2** | spec-tester | **≥ 85%** | Requirements (25%), Architecture (20%), Code (15%), Tests (15%), Security (15%), Docs (5%), ADR (5%) | Re-run dev agents with routed feedback (max 3×) |
+| **Gate 3** | spec-security | **≥ 90%** | Same 7 categories, higher thresholds | Re-run validation agents with routed feedback (max 3×) |
+
+After 3 failed attempts at any gate, the orchestrator escalates to the user with a clear summary of unresolved blockers.
+
+## Best Practices
+
+### For New Projects
+
+- Provide a clear, detailed project description including constraints and non-functional requirements
+- Use `--model-profile=default` for most projects — it balances cost and quality well
+- Let each agent complete its phase before intervening; the quality gate system handles iteration
+- Review `docs/{date}/specs/requirements.md` after Gate 1 to catch any misunderstandings early
+
+### For Existing Codebases
+
+- Always use `--mode=existing` — this activates spec-scanner and ensures convention matching
+- Pass `--input-architecture` if an ARCHITECTURE.md exists — prevents spec-architect from redesigning from scratch
+- Pass `--input-adr` to lock in existing Architecture Decisions — violations will be flagged as Critical
+- Pass `--input-tech-stack` to prevent the architect from introducing new frameworks
+- Review `codebase-context.md` before proceeding; it's the single source of truth for all agents
+
+### For Quality Control
+
+- Use `--quality=75` for rapid internal iterations, `--quality=95` for regulated/compliance systems
+- Use `--phase=planning` to review and approve specs before writing any code
+- The structured feedback routing means only the agents responsible for failures are re-run — no wasted work
+- The `workflow-state.json` file enables resuming interrupted runs without starting over
+
+## Advanced Usage
+
+### Resuming an Interrupted Run
+
+If a workflow was interrupted, the orchestrator reads `workflow-state.json` and resumes from the last completed gate checkpoint:
+
+```bash
+# Just re-run the same command — the orchestrator will detect the state file and ask to resume
+/agent-workflow "..." --mode=existing
+```
+
+### Running Individual Agents
+
+```bash
+# Run agents directly without the orchestrator
+Use the spec-scanner agent: scan this codebase and produce codebase-context.md
+Use the spec-analyst agent: analyse requirements for a social media dashboard
+Use the spec-security agent: run OWASP security audit on src/
+Use the spec-validator agent: validate project quality against Gate 3 threshold
+```
+
+### CI/CD Integration
+
+```yaml
+# GitHub Actions example — validation gate on pull requests
+name: Spec Validation
+on: [pull_request]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run Validation Gate
+        run: |
+          claude-code run spec-orchestrator \
+            --phase validation \
+            --mode existing
+```
+
+### Extending the System
+
+To add a new specialist agent:
+
+1. Create `agents/{category}/my-agent.md` with valid frontmatter (`name`, `description`, `tools`, `model`, `maxTurns`)
+2. Define Operating Mode, Artifact Contract, Document Output Path, and Agent Ownership sections
+3. Copy to `.claude/agents/` in your project
+4. Invoke directly or update spec-orchestrator to include it in the pipeline
+
+## Troubleshooting
+
+### Agent Not Found
+
+- Verify agents are in `.claude/agents/` (not a subdirectory)
+- Check YAML frontmatter is valid (no tabs, correct field names)
+- Confirm `name:` field in frontmatter matches how you invoke it
+
+### Quality Gate Failures
+
+- Read the `feedback_routing` YAML block in `docs/{date}/telemetry/validation-report.md`
+- Each item is addressed by a specific agent — the orchestrator handles re-routing automatically
+- After 3 failures, the orchestrator surfaces unresolved items to you for manual decision
+
+### Workflow Stuck or Interrupted
+
+- Check `workflow-state.json` for the current `phase` and `agents_completed` list
+- Re-run the same command — the orchestrator will offer to resume from the last checkpoint
+- To force a fresh start, delete `workflow-state.json`
+
+### Existing Codebase Pattern Drift
+
+- Review `codebase-context.md` — if conventions are incorrectly detected, edit the file manually before re-running
+- Pass `--input-tech-stack` to explicitly constrain the tech choices
+- Use `--input-adr` to lock in decisions that should not be changed
+
+### Debug Mode
+
+```bash
+Use spec-orchestrator with debug mode: Create test project and show all agent interactions
+```
+
+## Contributing
+
+Contributions are welcome. Please:
+
+1. Follow the existing agent frontmatter format (`name`, `description`, `tools`, `model`, `maxTurns`)
+2. Include Operating Mode, Artifact Contract, Document Output Path, and Agent Ownership sections
+3. Add usage examples to `docs/spec-workflow-usage-guide.md`
+4. Test your agent with the orchestrator before submitting
+5. Submit a PR with a description of what the agent does and where it fits in the pipeline
+
+## License
+
+MIT License — see LICENSE file for details
+
+## Acknowledgments
+
+- Built on Claude Code's Sub-Agents feature
+- Inspired by BMAD methodology
+- Community contributions welcome
+
+---
+
+For more information, see:
+
+- [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code)
+- [Sub-Agents Guide](https://docs.anthropic.com/en/docs/claude-code/sub-agents)
