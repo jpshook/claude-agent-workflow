@@ -36,14 +36,14 @@ Pass your feature description as the argument, optionally with flags:
 
 ## Model Profiles
 
-- **prototype** — haiku-heavy, skips spec-security, single human checkpoint at end. Fast and cheap.
+- **prototype** — haiku-heavy, skips spec-security, estimate checkpoint first, then final checkpoint at end. Fast and cheap.
 - **default** — balanced; opus for architecture, sonnet elsewhere. Recommended for most projects.
-- **enterprise** — sonnet/opus everywhere, includes spec-security, human checkpoints after Gate 1 and Gate 3.
+- **enterprise** — sonnet/opus everywhere, includes spec-security, estimate checkpoint first, plus human checkpoints after Gate 1 and Gate 3.
 
 ## Pipeline (Full Run)
 
 ```
-spec-estimator → estimate.md   [enterprise: human checkpoint to proceed]
+spec-estimator → estimate.md   [human checkpoint for all runs]
       ↓
 spec-scanner (existing mode only)
       ↓

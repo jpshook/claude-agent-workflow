@@ -96,7 +96,7 @@ The system follows a three-phase approach with quality gates:
 
 0. **Pre-planning (optional)**
    - spec-estimator: Effort and complexity estimate → `docs/{date}/plans/estimate.md`
-   - *(enterprise: human checkpoint — proceed Y/N before committing to full run)*
+   - *(human checkpoint for all runs — proceed Y/N before committing to full run)*
 
 1. **Planning Phase (20-25% of project time)**
    - spec-scanner *(existing mode only)*: Codebase analysis → `codebase-context.md`

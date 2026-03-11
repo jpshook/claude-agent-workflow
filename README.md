@@ -49,7 +49,7 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
           │
           ▼
   spec-estimator → docs/{date}/plans/estimate.md
-          │         (enterprise: human checkpoint — proceed Y/N?)
+          │         (human checkpoint for all runs — proceed Y/N?)
           ▼
    spec-scanner ← (existing mode only) produces codebase-context.md
           │
@@ -238,15 +238,15 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
 
 | Profile | Models Used | Security Scan | Human Checkpoints | Best For |
 |---------|------------|--------------|-------------------|---------|
-| `prototype` | haiku-heavy | ❌ skipped | End only | Fast MVPs, quick POCs |
-| `default` | opus (architect), sonnet (others) | ✅ | None | Most projects |
-| `enterprise` | sonnet/opus throughout | ✅ | After Gate 1 + Gate 3 | Production, compliance-sensitive |
+| `prototype` | haiku-heavy | ❌ skipped | After estimate + end | Fast MVPs, quick POCs |
+| `default` | opus (architect), sonnet (others) | ✅ | After estimate | Most projects |
+| `enterprise` | sonnet/opus throughout | ✅ | After estimate + Gate 1 + Gate 3 | Production, compliance-sensitive |
 
 ## How It Works
 
 ### Phase 0 — Estimation
 
-**spec-estimator** *(model: haiku, always runs unless skipped)*: Assesses complexity across five dimensions (scope, integration, data, frontend, risk) and produces a concise `estimate.md` with effort ranges per phase and a recommended model profile. The orchestrator displays this as a brief heads-up before proceeding. In enterprise profile it becomes a human checkpoint — the user can stop here if the scope is larger than expected.
+**spec-estimator** *(model: haiku, always runs unless skipped)*: Assesses complexity across five dimensions (scope, integration, data, frontend, risk) and produces a concise `estimate.md` with effort ranges per phase and a recommended model profile. The orchestrator displays this as a brief heads-up, then pauses for human confirmation before proceeding. The user can stop here if the scope is larger than expected.
 
 ### Phase 1 — Planning
 
@@ -518,20 +518,10 @@ Contributions are welcome. Please:
 4. Test your agent with the orchestrator before submitting
 5. Submit a PR with a description of what the agent does and where it fits in the pipeline
 
-## License
-
-MIT License — see LICENSE file for details
 
 ## Acknowledgments
 
 - Built on Claude Code's Sub-Agents feature
-- Inspired by BMAD methodology
 - Community contributions welcome
 
----
 
-For more information, see:
-
-- [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code)
-- [Sub-Agents Guide](https://docs.anthropic.com/en/docs/claude-code/sub-agents)
-- [Project Issues](https://github.com/zhsama/claude-sub-agent/issues)

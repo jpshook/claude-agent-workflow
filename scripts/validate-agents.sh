@@ -40,8 +40,12 @@ get_field() {
 }
 
 # ── Scan for agent files ──────────────────────────────────────────────────────
-# Search both flat and one-level-deep (for categorised agent directories)
-mapfile -t AGENT_FILES < <(find "$AGENTS_DIR" -maxdepth 2 -name "*.md" | sort)
+# Search both flat and one-level-deep (for categorised agent directories).
+# Avoid `mapfile` so this works with macOS's default Bash 3.2.
+AGENT_FILES=()
+while IFS= read -r agent_file; do
+  AGENT_FILES+=("$agent_file")
+done < <(find "$AGENTS_DIR" -maxdepth 2 -name "*.md" | sort)
 
 if [ ${#AGENT_FILES[@]} -eq 0 ]; then
   echo "No .md files found in $AGENTS_DIR"

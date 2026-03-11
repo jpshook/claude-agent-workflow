@@ -32,7 +32,7 @@ Select models based on the `--model-profile` flag (default: `default`):
 | spec-deployer | haiku | sonnet | sonnet |
 | spec-documenter | haiku | sonnet | sonnet |
 
-> Note: In `prototype` mode, spec-security is skipped. In `enterprise` mode, a human checkpoint is added after Gate 1 and Gate 3. spec-estimator always runs (unless skipped) and produces a checkpoint in enterprise mode.
+> Note: In `prototype` mode, spec-security is skipped. In `enterprise` mode, additional human checkpoints are added after Gate 1 and Gate 3. spec-estimator always runs (unless skipped) and always requires a human go/no-go checkpoint before the full pipeline continues.
 
 ---
 
@@ -43,7 +43,7 @@ Select models based on the `--model-profile` flag (default: `default`):
      │
      ▼
 [spec-estimator] → docs/{date}/plans/estimate.md
-     │              (enterprise: human checkpoint — proceed Y/N?)
+     │              (human checkpoint for all runs — proceed Y/N?)
      ▼
 [spec-scanner]  ← only in --mode=existing
      │ codebase-context.md
@@ -152,7 +152,7 @@ Pass context: mode={mode}, and any --input-* documents provided.
 
 Read `docs/{date}/plans/estimate.md`. Display the **Complexity Summary** and **Phase Effort Estimates** to the user as a brief heads-up before proceeding.
 
-**Enterprise human checkpoint:** If `--model-profile=enterprise`, pause after displaying the estimate and ask: "Proceed with the full pipeline? (Y/N)". If the user declines, stop here — the estimate.md is the deliverable.
+**Human checkpoint for all runs:** After displaying the estimate, pause and ask: "Proceed with the full pipeline? (Y/N)". If the user declines, stop here — the estimate.md is the deliverable.
 
 ---
 
