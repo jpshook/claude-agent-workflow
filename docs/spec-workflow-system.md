@@ -227,22 +227,16 @@ graph TD
 /agent-workflow "Create a todo list web app with auth"
 
 # Extend an existing codebase
-/agent-workflow "Add OAuth2 login" --mode=existing
+/agent-workflow "Add OAuth2 login"
 
-# Existing project with pre-existing architecture and ADRs
-/agent-workflow "New reporting module" --mode=existing \
-  --input-architecture=./ARCHITECTURE.md \
-  --input-adr=./docs/adrs/ \
-  --input-tech-stack=./docs/tech-stack.md
+# Existing project with pre-existing architecture and ADRs already in-repo
+/agent-workflow "New reporting module"
 
 # Enterprise profile with human checkpoints
 /agent-workflow "CRM system" --model-profile=enterprise
 
 # Prototype profile (fast, cheap, skips security)
 /agent-workflow "Quick MVP" --model-profile=prototype
-
-# Planning phase only
-/agent-workflow "E-commerce platform" --phase=planning
 
 # Override Gate 2 quality threshold
 /agent-workflow "Internal tool" --quality=75
@@ -257,17 +251,15 @@ graph TD
 /agent-workflow "..." --model-profile=prototype|default|enterprise
 ```
 
-### Phase-Specific Commands
+### Direct Agent Use
 
 ```bash
-# Planning only
-/spec-plan <project-description>
+# Explore the repo and produce codebase context
+Use the spec-scanner agent: scan this codebase and produce codebase-context.md
 
-# Development from existing specs
-/spec-develop <path/to/specifications>
-
-# Validation of existing code
-/spec-validate <path/to/project>
+# Review a generated plan or implementation with a specific specialist
+Use the spec-reviewer agent: review code in src/
+Use the spec-security agent: run OWASP security audit on src/
 ```
 
 ## Integration with Existing Tools
@@ -325,17 +317,15 @@ supporting user authentication, task CRUD operations, and real-time updates
 ### Enterprise System
 
 ```bash
-/agent-workflow --quality-threshold 98 --verbose 
-Develop an enterprise resource planning system with microservices architecture, 
-supporting inventory management, order processing, and financial reporting
+/agent-workflow "Develop an enterprise resource planning system with microservices architecture, supporting inventory management, order processing, and financial reporting" \
+  --model-profile=enterprise \
+  --quality=98
 ```
 
 ### API-Only Service
 
 ```bash
-/agent-workflow --skip-agents spec-analyst 
---from-requirements ./requirements/api-spec.md
-Build a RESTful API service for payment processing with Stripe integration
+/agent-workflow "Build a RESTful API service for payment processing with Stripe integration"
 ```
 
 ## Advantages Over Traditional Development

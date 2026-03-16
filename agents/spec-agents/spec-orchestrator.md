@@ -32,7 +32,7 @@ Select models based on the `--model-profile` flag (default: `default`):
 | spec-deployer | haiku | sonnet | sonnet |
 | spec-documenter | haiku | sonnet | sonnet |
 
-> Note: In `prototype` mode, spec-security is skipped. In `enterprise` mode, additional human checkpoints are added after Gate 1 and Gate 3. spec-estimator always runs (unless skipped) and always requires a human go/no-go checkpoint before the full pipeline continues.
+> Note: In `prototype` mode, spec-security is skipped. In `enterprise` mode, additional human checkpoints are added after Gate 1 and Gate 3. spec-estimator always runs and always requires a human go/no-go checkpoint before the full pipeline continues.
 
 ---
 
@@ -45,8 +45,10 @@ Select models based on the `--model-profile` flag (default: `default`):
 [spec-estimator] → docs/{date}/plans/estimate.md
      │              (human checkpoint for all runs — proceed Y/N?)
      ▼
-[spec-scanner]  ← only in --mode=existing
+[spec-scanner]  ← always runs
      │ codebase-context.md
+     ▼
+[scan interview checkpoint]
      ▼
 [spec-analyst]  → docs/{date}/specs/requirements.md
      │            docs/{date}/specs/user-stories.md
@@ -57,6 +59,8 @@ Select models based on the `--model-profile` flag (default: `default`):
      ▼
 [spec-planner]  → docs/{date}/plans/tasks.md
      │            docs/{date}/plans/test-plan.md
+     ▼
+[plan interview checkpoint]
      ▼
  GATE 1 (≥95%)
      │ PASS
@@ -100,17 +104,8 @@ Parse `$ARGUMENTS` at startup. Supported flags:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--mode=greenfield` | `greenfield` | New project from scratch |
-| `--mode=existing` | — | Extend/modify existing codebase |
 | `--model-profile=default` | `default` | `prototype` / `default` / `enterprise` |
-| `--quality=85` | `85` (Gate 2) | Override minimum Gate 2 threshold |
-| `--input-requirements=<path>` | — | Pre-existing requirements doc to hand to spec-analyst |
-| `--input-architecture=<path>` | — | Pre-existing architecture doc to hand to spec-architect |
-| `--input-adr=<path>` | — | ADR directory or file to lock in |
-| `--input-tech-stack=<path>` | — | Tech stack constraints file |
-| `--input-constraints=<path>` | — | Any additional constraint document |
-| `--skip-agent=<name>` | — | Skip a specific agent (comma-separated) |
-| `--phase=planning` | — | Run only: `planning` / `development` / `validation` |
+| `--quality=85` | `85` (Gate 2) | Override Gate 2 minimum threshold only. Does not change Gate 1 or Gate 3. |
 
 Store parsed flags in `workflow-state.json` (see State Tracking section).
 
@@ -125,11 +120,10 @@ Create or read `workflow-state.json` in the project root:
 ```json
 {
   "run_id": "run-{YYYYMMDD-HHMMSS}",
-  "mode": "greenfield",
   "model_profile": "default",
   "feature": "...",
   "date": "YYYY_MM_DD",
-  "phase": "planning",
+  "repo_classification": null,
   "gate1_score": null,
   "gate2_score": null,
   "gate3_score": null,
@@ -137,17 +131,19 @@ Create or read `workflow-state.json` in the project root:
   "max_iterations": 3,
   "agents_completed": [],
   "locked_artifacts": {},
+  "interview_notes": {
+    "scan": [],
+    "plan": []
+  },
   "flags": {}
 }
 ```
 
-Set `locked_artifacts` from any `--input-*` flags provided. These paths are passed directly to relevant agents and must not be overwritten.
-
-After initialising state, run the estimator (unless `--skip-agent=spec-estimator`):
+After initialising state, run the estimator:
 
 ```
 Use the spec-estimator sub agent to estimate effort and complexity for: [{feature}].
-Pass context: mode={mode}, and any --input-* documents provided.
+Pass context: repo has not been scanned yet.
 ```
 
 Read `docs/{date}/plans/estimate.md`. Display the **Complexity Summary** and **Phase Effort Estimates** to the user as a brief heads-up before proceeding.
@@ -156,15 +152,28 @@ Read `docs/{date}/plans/estimate.md`. Display the **Complexity Summary** and **P
 
 ---
 
-### Step 1 — Pre-scan (existing mode only)
-
-If `--mode=existing` and `spec-scanner` is not skipped:
+### Step 1 — Repository Scan
 
 ```
 Use the spec-scanner sub agent to analyse the codebase and produce codebase-context.md.
 ```
 
-Store `codebase-context.md` path in `workflow-state.json`.
+Read `codebase-context.md` and store:
+- the repo classification (`greenfield`, `existing`, or `ambiguous`)
+- the discovered planning inputs section
+- the file path to `codebase-context.md`
+
+Update `workflow-state.json` with the classification and discovered inputs.
+
+### Step 1a — Scan Interview Checkpoint
+
+Present the user with a concise scan summary:
+- repo classification and why
+- detected languages, frameworks, and architecture patterns
+- discovered planning inputs that will be treated as constraints
+- any ambiguous or conflicting findings
+
+Then ask targeted clarification questions only where they would materially improve planning. Capture the user's answers in `workflow-state.json` under `interview_notes.scan`.
 
 ---
 
@@ -175,24 +184,36 @@ Run sequentially:
 **2a. spec-analyst**
 ```
 Use the spec-analyst sub agent to analyse requirements for: [{feature}].
-Pass context: mode={mode}, codebase-context={path if existing}, input-requirements={path if provided}.
+Pass context: codebase-context={path}, repo-classification={classification}, interview-notes={scan notes}, and any discovered requirements documents.
 ```
 
 **2b. spec-architect**
 ```
 Use the spec-architect sub agent to design system architecture based on requirements.md.
-Pass context: mode={mode}, codebase-context={path if existing}, input-architecture={path if provided}, input-adr={path if provided}, input-tech-stack={path if provided}.
+Pass context: codebase-context={path}, repo-classification={classification}, interview-notes={scan notes}, and any discovered architecture, ADR, and tech stack documents.
 ```
 
 **2c. spec-planner**
 ```
 Use the spec-planner sub agent to create task breakdown from requirements.md and architecture.md.
-Pass context: mode={mode}, input-constraints={path if provided}.
+Pass context: codebase-context={path}, repo-classification={classification}, interview-notes={scan notes}, and any discovered constraints, integration notes, or contracts documents.
 ```
 
 ---
 
-### Step 3 — Gate 1 (Planning Quality ≥ 95%)
+### Step 3 — Plan Interview Checkpoint
+
+Before Gate 1, present a concise planning summary:
+- key requirements and assumptions
+- major architecture choices
+- task breakdown and expected implementation shape
+- unresolved risks, tradeoffs, or questions
+
+Ask follow-up questions where clarification would change implementation. If the user refines scope or constraints, re-run the affected planning agents before evaluating Gate 1. Capture the user's answers in `workflow-state.json` under `interview_notes.plan`.
+
+---
+
+### Step 4 — Gate 1 (Planning Quality ≥ 95%)
 
 Read `docs/{date}/plans/tasks.md`. Evaluate planning quality by checking:
 - All functional requirements from `requirements.md` have at least one corresponding task
@@ -200,7 +221,7 @@ Read `docs/{date}/plans/tasks.md`. Evaluate planning quality by checking:
 - `tasks.md` contains all required sections per spec-planner artifact contract
 - Each task has a clear acceptance criterion
 
-**If score ≥ 95%:** Record in `workflow-state.json`, proceed to Step 4.
+**If score ≥ 95%:** Record in `workflow-state.json`, proceed to Step 5.
 
 **If score < 95%:** Produce structured feedback and loop back to spec-analyst (max 3 iterations):
 ```yaml
@@ -220,25 +241,25 @@ feedback_routing:
 
 ---
 
-### Step 4 — Development Phase
+### Step 5 — Development Phase
 
 Run sequentially, then in parallel:
 
 **4a. spec-developer** (sequential — depends on planning artifacts)
 ```
 Use the spec-developer sub agent to implement all tasks in tasks.md.
-Pass context: mode={mode}, codebase-context={path if existing}.
+Pass context: codebase-context={path}, repo-classification={classification}, interview-notes={scan + plan notes}.
 ```
 
 **4b. spec-tester** (can run after spec-developer completes)
 ```
 Use the spec-tester sub agent to write and execute tests for the implementation.
-Pass context: mode={mode}, codebase-context={path if existing}.
+Pass context: codebase-context={path}, repo-classification={classification}, interview-notes={scan + plan notes}.
 ```
 
 ---
 
-### Step 5 — Gate 2 (Development Quality ≥ 85%)
+### Step 6 — Gate 2 (Development Quality ≥ 85%)
 
 Invoke spec-validator with Gate 2 context:
 ```
@@ -247,18 +268,18 @@ Use the spec-validator sub agent to evaluate development phase quality (Gate 2, 
 
 Read the `gate_result` YAML block from `docs/{date}/telemetry/validation-report.md`.
 
-**If score ≥ 85%:** Record in `workflow-state.json`, proceed to Step 6.
+**If score ≥ 85%:** Record in `workflow-state.json`, proceed to Step 7.
 
 **If score < 85%:** Parse `feedback_routing` and re-run affected agents (max 3 iterations). On 3rd failure, escalate to user with the unresolved blockers list.
 
 ---
 
-### Step 6 — Validation Phase
+### Step 7 — Validation Phase
 
 **6a. spec-reviewer**
 ```
 Use the spec-reviewer sub agent to review code quality and ADR compliance.
-Pass context: mode={mode}, codebase-context={path if existing}.
+Pass context: codebase-context={path}, repo-classification={classification}, interview-notes={scan + plan notes}.
 ```
 
 Read `docs/{date}/reviews/code-review.md`. If `structural-refactoring-needed: true`:
@@ -274,7 +295,7 @@ Use the spec-security sub agent to perform OWASP security assessment.
 
 ---
 
-### Step 7 — Gate 3 (Release Readiness ≥ 90%)
+### Step 8 — Gate 3 (Release Readiness ≥ 90%)
 
 Invoke spec-validator with Gate 3 context:
 ```
@@ -291,32 +312,32 @@ Read the `gate_result` YAML block from `docs/{date}/telemetry/validation-report.
 
 ---
 
-### Step 8 — Post-Validation (Deployment & Docs)
+### Step 9 — Post-Validation (Deployment & Docs)
 
-Run sequentially (unless skipped with `--skip-agent`):
+Run sequentially:
 
 **8a. spec-deployer**
 ```
 Use the spec-deployer sub agent to generate deployment configuration for the project.
-Pass context: mode={mode}, codebase-context={path if existing}.
+Pass context: codebase-context={path}, repo-classification={classification}, interview-notes={scan + plan notes}.
 ```
 
 **8b. spec-documenter**
 ```
 Use the spec-documenter sub agent to produce README, developer guide, and runbook.
-Pass context: mode={mode}, codebase-context={path if existing}.
+Pass context: codebase-context={path}, repo-classification={classification}, interview-notes={scan + plan notes}.
 ```
 
 spec-documenter has `background: true` but runs after spec-deployer since it references the deploy config. Do not run them concurrently.
 
 ---
 
-### Step 9 — Completion
+### Step 10 — Completion
 
 Update `workflow-state.json`:
 ```json
 {
-  "phase": "complete",
+  "repo_classification": "existing",
   "gate1_score": 97,
   "gate2_score": 88,
   "gate3_score": 92,
@@ -331,7 +352,7 @@ Write telemetry summary to `docs/{date}/telemetry/run-summary.md`:
 
 **Run ID**: run-20260309-143022
 **Feature**: [feature description]
-**Mode**: greenfield | existing
+**Repo Classification**: greenfield | existing | ambiguous
 **Model Profile**: default
 **Total Iterations**: 2
 
@@ -344,7 +365,7 @@ Write telemetry summary to `docs/{date}/telemetry/run-summary.md`:
 
 ## Agents Executed
 - spec-estimator (1 iteration)
-- spec-scanner (existing mode only)
+- spec-scanner (always runs)
 - spec-analyst (1 iteration)
 - spec-architect (1 iteration)
 - spec-planner (1 iteration)

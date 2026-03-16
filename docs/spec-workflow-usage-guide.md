@@ -13,13 +13,10 @@ The Spec Agent Workflow System is a comprehensive AI-driven development pipeline
 /agent-workflow "Create a todo list web application with user authentication"
 
 # Extend an existing codebase
-/agent-workflow "Add OAuth2 login to the existing auth service" --mode=existing
+/agent-workflow "Add OAuth2 login to the existing auth service"
 
-# Existing project with pre-existing architecture docs
-/agent-workflow "New reporting module" --mode=existing \
-  --input-architecture=./ARCHITECTURE.md \
-  --input-adr=./docs/adrs/ \
-  --input-tech-stack=./docs/tech-stack.md
+# Existing project with pre-existing architecture docs already in the repo
+/agent-workflow "New reporting module"
 
 # Enterprise workflow with human review checkpoints
 /agent-workflow "Enterprise CRM" --model-profile=enterprise
@@ -27,8 +24,8 @@ The Spec Agent Workflow System is a comprehensive AI-driven development pipeline
 # Prototype — fast and cheap, skips security scan
 /agent-workflow "Quick proof of concept" --model-profile=prototype
 
-# Planning phase only (generate specs without writing code)
-/agent-workflow "E-commerce platform" --phase=planning
+# Planning and refinement are built into the default run
+/agent-workflow "E-commerce platform"
 
 # Direct orchestrator invocation
 Use the spec-orchestrator agent: Create a todo list web application with user authentication
@@ -40,7 +37,7 @@ Use the spec-orchestrator agent: Create a todo list web application with user au
 .claude/agents/
 ├── spec-agents/
 │   ├── spec-orchestrator.md    # Execution controller — manages full pipeline
-│   ├── spec-scanner.md         # Read-only codebase scan (existing mode only)
+│   ├── spec-scanner.md         # Read-only codebase scan (always runs)
 │   ├── spec-analyst.md         # Requirements analysis (model: sonnet)
 │   ├── spec-architect.md       # System design (model: opus)
 │   ├── spec-planner.md         # Task planning (model: haiku)
@@ -102,10 +99,7 @@ Create a personal blog platform with markdown support, user comments, and an adm
 
 **Command**:
 /agent-workflow "Add Google OAuth2 login alongside existing email/password auth" \
-  --mode=existing \
-  --input-architecture=./ARCHITECTURE.md \
-  --input-adr=./docs/adrs/ \
-  --input-tech-stack=./docs/tech-stack.md
+  --model-profile=default
 
 **Workflow Execution**:
 
@@ -113,21 +107,27 @@ Create a personal blog platform with markdown support, user comments, and an adm
    - Detects: Node.js 20, Express, Passport.js, Jest, TypeScript
    - Maps: src/auth/, src/users/, tests/auth/
    - Finds existing ADR: "ADR-003: Use JWT refresh tokens in httpOnly cookies"
+   - Discovers: `ARCHITECTURE.md`, `docs/adrs/`, `docs/tech-stack.md`
    - Produces: codebase-context.md
 
-2. **Planning Phase** (~20 min)
+2. **Scan interview checkpoint**
+   - Confirms discovered architecture and ADR docs should be treated as constraints
+   - Clarifies whether OAuth2 should coexist with existing local auth or replace it
+
+3. **Planning Phase** (~20 min)
    - spec-analyst reads existing requirements + OAuth2 extension request
-   - spec-architect reads ARCHITECTURE.md, proposes adding passport-google-oauth20
+   - spec-architect reads discovered docs, proposes adding passport-google-oauth20
    - spec-planner tags all tasks as [NEW] or [MODIFY]
+   - Plan interview checkpoint confirms rollout expectations
    - Gate 1: PASS (96/100)
 
-3. **Development Phase** (~45 min)
+4. **Development Phase** (~45 min)
    - spec-developer reads codebase-context.md, matches TypeScript patterns exactly
    - Adds Google strategy alongside existing local strategy (no rewrite)
    - spec-tester detects Jest + existing test structure, adds OAuth2 tests
    - Gate 2: PASS (87/100)
 
-4. **Validation Phase** (~20 min)
+5. **Validation Phase** (~20 min)
    - spec-reviewer checks ADR-003 compliance — refresh token in httpOnly cookie ✅
    - spec-security checks for SSRF in OAuth callback URL handling
    - Gate 3: PASS (91/100)
@@ -141,7 +141,7 @@ Create a personal blog platform with markdown support, user comments, and an adm
 **Project**: Multi-tenant SaaS CRM
 
 **Input to spec-orchestrator**:
---quality-threshold 95 --verbose
+--model-profile=enterprise --quality=95
 Build an enterprise CRM system with multi-tenancy, role-based access control, 
 API integrations, and real-time analytics dashboard
 
@@ -210,28 +210,22 @@ spec-orchestrator coordinates with ui-ux-master for design specs
 /agent-workflow "<feature description>" [flags]
 
 # Mode
---mode=greenfield          # Default — new project from scratch
---mode=existing            # Extend/modify an existing codebase
-
 # Model profile
 --model-profile=prototype  # haiku-heavy, fast, no security scan
 --model-profile=default    # Balanced (opus for architecture, sonnet elsewhere)
 --model-profile=enterprise # Thorough, human checkpoints at Gate 1 + Gate 3
 
 # Quality
---quality=85               # Gate 2 minimum threshold (default: 85, range: 70-99)
+--quality=85               # Gate 2 minimum threshold only (default: 85, range: 70-99)
 
-# Input document flags (pass pre-existing docs to agents)
---input-requirements=<path>    # Requirements doc → spec-analyst
---input-architecture=<path>    # Architecture doc → spec-architect
---input-adr=<path>             # ADR directory/file → all agents for compliance
---input-tech-stack=<path>      # Tech stack constraints → spec-architect + spec-developer
---input-constraints=<path>     # Additional constraints → all agents
-
-# Execution control
---skip-agent=<name>        # Skip an agent (comma-separated for multiple)
---phase=planning           # Run only one phase: planning | development | validation
 ```
+
+Notes:
+- `spec-scanner` always runs first and determines whether the repo is effectively greenfield, existing, or ambiguous.
+- Scanner also auto-discovers requirements docs, architecture docs, ADRs, tech stack docs, and constraints docs already present in the repo.
+- `--quality` only changes Gate 2. Gate 1 and Gate 3 remain fixed.
+- The workflow now includes an interview checkpoint after scanning and another after planning.
+- The workflow does not define `--quality-threshold`, `--skip-agents`, `--focus`, `--verbose`, `--debug`, `--existing-code`, or `--from-requirements`.
 
 ### Individual Agent Usage
 
@@ -339,9 +333,10 @@ Failure Actions:
 ### Pattern 1: Rapid Prototyping
 
 ```bash
-# Skip comprehensive planning for MVP
-spec-orchestrator: --skip-agents analyst --quality-threshold 75
-Create a simple landing page with email capture
+# Lower Gate 2 strictness for an internal MVP
+/agent-workflow "Create a simple landing page with email capture" \
+  --model-profile=prototype \
+  --quality=75
 
 # Results in faster but less comprehensive output
 ```
@@ -349,31 +344,32 @@ Create a simple landing page with email capture
 ### Pattern 2: High-Security Application
 
 ```bash
-# Emphasize security throughout workflow
-spec-orchestrator: --quality-threshold 95 --focus security
-Create a banking transaction system with fraud detection
+# Use the strictest supported profile and threshold
+/agent-workflow "Create a banking transaction system with fraud detection" \
+  --model-profile=enterprise \
+  --quality=95
 
-# Triggers additional security checks at each phase
+# Includes spec-security and extra human checkpoints
 ```
 
 ### Pattern 3: Performance-Critical System
 
 ```bash
-# Focus on performance optimization
-spec-orchestrator: --focus performance --verbose
-Create a real-time trading platform with <10ms latency
+# State the performance target directly in the feature request
+/agent-workflow "Create a real-time trading platform with less than 10ms latency" \
+  --model-profile=enterprise
 
-# Adds performance benchmarks and optimization cycles
+# Performance goals should live in the requirements, not in hidden workflow flags
 ```
 
 ### Pattern 4: Legacy Modernization
 
 ```bash
-# Work with existing codebase
-spec-orchestrator: --phase analysis --existing-code ./legacy/
-Modernize legacy PHP application to microservices
+# Scan and plan against an existing codebase without writing code
+/agent-workflow "Modernize legacy PHP application toward a modular service architecture" \
+  --model-profile=default
 
-# Analyzes existing code before planning migration
+# Runs scanner, asks clarifying questions, and plans before implementation
 ```
 
 ## Troubleshooting
@@ -401,11 +397,9 @@ Modernize legacy PHP application to microservices
 ### Debug Mode
 
 ```bash
-# Enable detailed debugging
-spec-orchestrator: --debug --log-level verbose
-Create test project
-
-# Outputs detailed logs for troubleshooting
+# There is no workflow-level debug flag defined today.
+# Use smaller scoped runs or invoke individual agents directly.
+Use the spec-scanner agent: scan this codebase
 ```
 
 ## Best Practices
@@ -419,10 +413,9 @@ Create test project
 
 ### 2. **Workflow Optimization**
 
-- Use parallel execution for large projects
-- Skip agents when appropriate
-- Cache results for iterative development
-- Monitor resource usage
+- Use the scan interview to correct repo assumptions before planning starts
+- Use the plan interview to tighten scope before code generation starts
+- Keep constraints docs explicit instead of relying on implied behavior
 
 ### 3. **Quality Management**
 
@@ -440,35 +433,6 @@ Create test project
 
 ## Advanced Usage
 
-### Custom Quality Criteria
-
-```typescript
-// Add custom quality checks
-const customCriteria = {
-  name: 'Custom Business Logic',
-  evaluate: async (artifacts) => {
-    // Custom validation logic
-    return score > 90;
-  }
-};
-
-spec-orchestrator: --custom-criteria ./my-criteria.js
-```
-
-### Workflow Templates
-
-```yaml
-# Save successful workflow configurations
-name: enterprise-web-app
-quality_threshold: 95
-skip_agents: []
-focus_areas: [security, performance]
-parallel: true
-custom_validators:
-  - penetration-test
-  - load-test
-```
-
 ### CI/CD Integration
 
 ```yaml
@@ -483,9 +447,7 @@ jobs:
       - name: Run Spec Workflow
         run: |
           claude-code spec-orchestrator \
-            --phase validation \
-            --project-path . \
-            --quality-threshold 90
+            --quality 90
 ```
 
 ## Conclusion
