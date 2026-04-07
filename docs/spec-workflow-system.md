@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Spec Agent Workflow System combines BMAD's proven multi-agent architecture with Claude Code's Sub-Agents capability to create an automated, quality-gated development pipeline. This system transforms complex projects from conception to production-ready code through specialized AI agents working in coordinated sequences.
+The Spec Agent Workflow System combines BMAD's proven multi-agent architecture with Claude Code's Sub-Agents capability to create an automated, quality-gated development pipeline. This system transforms complex projects from conception to production-ready code through specialized AI agents working in coordinated sequences, with explicit human-in-the-loop refinement loops before implementation begins.
 
 ## Core Philosophy
 
@@ -18,55 +18,58 @@ Every phase produces structured artifacts that serve as inputs for subsequent ph
 
 Automated validation checkpoints ensure each phase meets defined quality standards before proceeding, with intelligent feedback loops for continuous improvement.
 
-### 4. **Iterative Excellence**
+### 4. **Human-Guided Refinement**
 
-The system supports both linear progression and iterative refinement, automatically cycling through improvement loops until quality thresholds are met.
+The system includes explicit interview/refinement loops after repo exploration and after planning so that ambiguity, tradeoffs, and scope decisions are resolved before implementation starts.
 
 ## System Architecture
 
 ```mermaid
 graph TD
     A[User Request] --> B[Workflow Orchestrator]
-    B --> C[Planning Phase]
-    C --> D[spec-analyst]
-    D --> E[spec-architect]
-    E --> F[spec-planner]
+    B --> C["spec-scanner (Explore)"]
+    C --> D["Interview / Refine"]
+    D --> E["Planning Phase"]
+    E --> F[spec-analyst]
+    F --> G[spec-architect]
+    G --> H[spec-planner]
+    H --> I["Interview / Refine"]
     
-    F --> G{Quality Gate 1}
-    G -->|Pass| H[Development Phase]
-    G -->|Fail| D
+    I --> J{Quality Gate 1}
+    J -->|Fail| E
+    J -->|Pass| K[Development Phase]
     
-    H --> I[spec-developer]
-    I --> J[spec-tester]
+    K --> L[spec-developer]
+    L --> M[spec-tester]
     
-    J --> K{Quality Gate 2}
-    K -->|Pass| L[Validation Phase]
-    K -->|Fail| I
+    M --> N{Quality Gate 2}
+    N -->|Pass| O[Validation Phase]
+    N -->|Fail| L
     
-    L --> M[spec-reviewer]
-    M --> N[spec-validator]
+    O --> P[spec-reviewer]
+    P --> Q[spec-validator]
     
-    N --> O{Quality Gate 3}
-    O -->|Pass| P[Deployment Ready]
-    O -->|Fail| Q{Determine Fix Path}
+    Q --> R{Quality Gate 3}
+    R -->|Pass| S[Deployment Ready]
+    R -->|Fail| T{Determine Fix Path}
     
-    Q --> R[Return to Planning]
-    Q --> S[Return to Development]
+    T --> U[Return to Planning]
+    T --> V[Return to Development]
     
-    R --> D
-    S --> I
+    U --> E
+    V --> L
     
-    P --> T[Complete Package]
-    T --> U[Documentation]
-    T --> V[Code]
-    T --> W[Tests]
-    T --> X[Deployment Scripts]
+    S --> W[Complete Package]
+    W --> X[Documentation]
+    W --> Y[Code]
+    W --> Z[Tests]
+    W --> AA[Deployment Scripts]
     
     style B fill:#1a73e8,color:#fff
-    style G fill:#f9ab00,color:#fff
-    style K fill:#f9ab00,color:#fff
-    style O fill:#f9ab00,color:#fff
-    style P fill:#34a853,color:#fff
+    style J fill:#f9ab00,color:#fff
+    style N fill:#f9ab00,color:#fff
+    style R fill:#f9ab00,color:#fff
+    style S fill:#34a853,color:#fff
 ```
 
 ## Agent Roles
@@ -155,6 +158,7 @@ graph TD
 - **Responsibilities**:
   - Parse input flags and build workflow config
   - Sequence agents and route artifacts between them
+  - Run the required interview/refinement loops after exploration and planning
   - Enforce quality gates with structured feedback routing
   - Maintain `workflow-state.json` for resumable runs
   - Manage human checkpoints (enterprise profile)
@@ -163,15 +167,17 @@ graph TD
 
 ### New Agents (v2)
 
-#### 9. spec-scanner *(existing-codebase mode only)*
+#### 9. spec-scanner
 
-- **Purpose**: Read-only codebase analysis for existing projects
+- **Purpose**: Read-only codebase analysis for every workflow run
 - **Model**: haiku
 - **Responsibilities**:
   - Detect tech stack, frameworks, and versions
   - Document coding conventions and patterns
   - Map repository structure and entry points
   - List existing ADRs and open TODOs
+  - Classify the repo as greenfield, existing, or ambiguous
+  - Discover in-repo documents that should shape planning
 - **Outputs**: `codebase-context.md` (project root)
 
 #### 10. spec-security

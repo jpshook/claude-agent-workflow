@@ -1,5 +1,5 @@
 ---
-description: "Automated multi-agent development workflow: planning → development → validation with quality gates"
+description: "Automated workflow with explore → plan → interview/refine → execute → review phases and quality gates"
 allowed-tools: ["Agent", "Read", "Write", "Glob", "Grep", "TodoWrite"]
 ---
 
@@ -31,7 +31,7 @@ Pass your feature description as the argument, optionally with flags:
 - `spec-scanner` runs on every workflow invocation. It determines whether the repo is effectively greenfield or established.
 - The scanner also discovers architecture docs, ADRs, tech stack docs, and other constraints automatically and reports them before planning continues.
 - `--quality` affects Gate 2 only. Gate 1 and Gate 3 remain fixed at 95 and 90.
-- Two interview checkpoints are built into the workflow: one after scanning and one after planning.
+- A required interview/refinement loop is built into the workflow: once after scanning and once after planning.
 
 ## Model Profiles
 
@@ -46,7 +46,7 @@ spec-estimator → estimate.md   [human checkpoint for all runs]
       ↓
 spec-scanner → codebase-context.md   [always runs]
       ↓
-scan interview checkpoint
+scan interview/refine loop
       ↓
 spec-analyst → requirements.md, user-stories.md
       ↓
@@ -54,7 +54,7 @@ spec-architect → architecture.md, api-spec.md, adrs/
       ↓
 spec-planner → tasks.md, test-plan.md
       ↓
-plan interview checkpoint
+plan interview/refine loop
       ↓
  ── GATE 1 (≥ 95%) ──
       ↓ PASS

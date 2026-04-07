@@ -110,7 +110,7 @@ Create a personal blog platform with markdown support, user comments, and an adm
    - Discovers: `ARCHITECTURE.md`, `docs/adrs/`, `docs/tech-stack.md`
    - Produces: codebase-context.md
 
-2. **Scan interview checkpoint**
+2. **Scan interview / refinement loop**
    - Confirms discovered architecture and ADR docs should be treated as constraints
    - Clarifies whether OAuth2 should coexist with existing local auth or replace it
 
@@ -118,7 +118,7 @@ Create a personal blog platform with markdown support, user comments, and an adm
    - spec-analyst reads existing requirements + OAuth2 extension request
    - spec-architect reads discovered docs, proposes adding passport-google-oauth20
    - spec-planner tags all tasks as [NEW] or [MODIFY]
-   - Plan interview checkpoint confirms rollout expectations
+   - Plan interview / refinement loop confirms rollout expectations
    - Gate 1: PASS (96/100)
 
 4. **Development Phase** (~45 min)
@@ -224,7 +224,7 @@ Notes:
 - `spec-scanner` always runs first and determines whether the repo is effectively greenfield, existing, or ambiguous.
 - Scanner also auto-discovers requirements docs, architecture docs, ADRs, tech stack docs, and constraints docs already present in the repo.
 - `--quality` only changes Gate 2. Gate 1 and Gate 3 remain fixed.
-- The workflow now includes an interview checkpoint after scanning and another after planning.
+- The workflow now includes a required interview/refinement loop after scanning and another after planning.
 - The workflow does not define `--quality-threshold`, `--skip-agents`, `--focus`, `--verbose`, `--debug`, `--existing-code`, or `--from-requirements`.
 
 ### Individual Agent Usage

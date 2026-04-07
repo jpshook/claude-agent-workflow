@@ -1,6 +1,6 @@
 # Claude Sub-Agent Spec Workflow System
 
-A comprehensive AI-driven development workflow system built on Claude Code's Sub-Agents feature. This system transforms project ideas into production-ready code through specialized AI agents working in coordinated phases — with full support for both greenfield projects and extending existing codebases.
+A comprehensive AI-driven development workflow system built on Claude Code's Sub-Agents feature. This system transforms project ideas into production-ready code through specialized AI agents working in coordinated phases, with explicit human-in-the-loop refinement loops before execution begins.
 
 ## Table of Contents
 
@@ -15,7 +15,6 @@ A comprehensive AI-driven development workflow system built on Claude Code's Sub
 - [Quality Gates](#quality-gates)
 - [Best Practices](#best-practices)
 - [Advanced Usage](#advanced-usage)
-- [Dual-Repo Coordination](#dual-repo-coordination)
 - [Troubleshooting](#troubleshooting)
 
 ## Overview
@@ -55,7 +54,7 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
    spec-scanner ← always runs and produces codebase-context.md
           │
           ▼
-  scan interview checkpoint
+  scan interview/refine loop
           │
           ▼
    spec-analyst → docs/{date}/specs/requirements.md
@@ -68,7 +67,7 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
    spec-planner → docs/{date}/plans/tasks.md
           │        docs/{date}/plans/test-plan.md
           ▼
-  plan interview checkpoint
+  plan interview/refine loop
           │
           ▼
    ── GATE 1 (≥ 95%) ──
@@ -196,10 +195,7 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
    ├── scripts/
    │   ├── setup.sh               # Install agents into a project
    │   ├── validate-agents.sh     # Check agent frontmatter
-   │   ├── cleanup-worktrees.sh   # Remove stale git worktrees
-   │   └── run-dual-repo-feature.sh  # Run API→SPA workflow sequence
-   ├── docs/
-   │   └── dual-repo-playbook.md  # API + SPA feature coordination guide
+   │   └── cleanup-worktrees.sh   # Remove stale git worktrees
    └── CLAUDE.md
    ```
 
@@ -238,7 +234,7 @@ Notes:
 - `spec-scanner` runs on every workflow invocation and determines whether the repo is effectively greenfield or established.
 - Scanner also auto-discovers architecture docs, ADRs, tech stack docs, requirements docs, and constraints docs already present in the repo.
 - `--quality` only changes Gate 2. Gate 1 stays at 95 and Gate 3 stays at 90.
-- The workflow now includes two built-in interview checkpoints: after scanning and after planning.
+- The workflow now includes two required interview/refinement loops: after scanning and after planning.
 
 ### Model Profiles
 
@@ -257,11 +253,11 @@ Notes:
 ### Phase 1 — Planning
 
 1. **spec-scanner** *(model: haiku, always runs)*: Scans the codebase to produce `codebase-context.md` — repo maturity, tech stack, conventions, patterns, ADRs, discovered planning inputs, and open TODOs. Read-only; does not modify any files.
-2. **Scan Interview Checkpoint**: The orchestrator summarizes what it found and asks targeted questions before planning continues.
+2. **Scan Interview / Refinement Loop**: The orchestrator summarizes what it found, asks targeted questions, and updates the repo context before planning continues.
 3. **spec-analyst** *(model: sonnet)*: Analyses requirements and produces `requirements.md` and `user-stories.md`.
 4. **spec-architect** *(model: opus)*: Designs system architecture, API contracts, and Architecture Decision Records using the scanned repo context and discovered project docs.
 5. **spec-planner** *(model: haiku)*: Breaks requirements into tasks.
-6. **Plan Interview Checkpoint**: The orchestrator summarizes the proposed plan and asks clarifying questions before code generation begins.
+6. **Plan Interview / Refinement Loop**: The orchestrator summarizes the proposed plan, asks clarifying questions, and regenerates planning artifacts as needed before code generation begins.
 7. **Gate 1** (≥ 95%): Orchestrator checks artifact completeness before proceeding.
 
 ### Phase 2 — Development
@@ -403,7 +399,7 @@ After 3 failed attempts at any gate, the orchestrator escalates to the user with
 ### For Quality Control
 
 - Use `--quality=75` for rapid internal iterations, `--quality=95` for regulated/compliance systems
-- Use the plan interview checkpoint to review and refine specs before writing any code
+- Use the plan interview/refinement loop to review and refine specs before writing any code
 - The structured feedback routing means only the agents responsible for failures are re-run — no wasted work
 - The `workflow-state.json` file enables resuming interrupted runs without starting over
 
@@ -460,36 +456,7 @@ bash scripts/cleanup-worktrees.sh                # interactive
 bash scripts/cleanup-worktrees.sh --dry-run      # preview only
 bash scripts/cleanup-worktrees.sh --all          # remove all without prompting
 
-# Run one feature across two repos (API first, SPA second)
-bash scripts/run-dual-repo-feature.sh \
-  --api-repo /path/to/fub-api \
-  --spa-repo /path/to/fub-spa \
-  --feature "Add usage dashboard" \
-  --branch fub-482-usage-dashboard
 ```
-
-## Dual-Repo Coordination
-
-The core `/agent-workflow` remains single-repo by design. For features that span two repos (for example, API + SPA), use the thin wrapper script:
-
-```bash
-bash scripts/run-dual-repo-feature.sh \
-  --api-repo /path/to/fub-api \
-  --spa-repo /path/to/fub-spa \
-  --feature "Add usage dashboard" \
-  --branch fub-482-usage-dashboard
-```
-
-To coordinate API contract details into the SPA run:
-
-```bash
-bash scripts/run-dual-repo-feature.sh \
-  --api-repo /path/to/fub-api \
-  --spa-repo /path/to/fub-spa \
-  --feature "Add usage dashboard"
-```
-
-Use the scan and plan interviews in the SPA repo to point the workflow at API contract changes. See [docs/dual-repo-playbook.md](docs/dual-repo-playbook.md) for the recommended branch, handoff, and merge strategy.
 
 ### Extending the System
 
