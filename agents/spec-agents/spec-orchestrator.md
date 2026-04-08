@@ -1,6 +1,6 @@
 ---
 name: spec-orchestrator
-description: Execution controller for the full spec workflow pipeline. Manages explore, planning, interview/refinement loops, execution, review, quality gates, state tracking, human checkpoints, and telemetry. Invoke directly or via the /agent-workflow slash command.
+description: Execution controller for the full spec workflow pipeline. Manages explore, planning, interview/refinement loops, execution, review, quality gates, state tracking, human checkpoints, and telemetry. Uses the premium sonnet/opus setup by default, with optional no-HITL and force-opus flags.
 tools: Read, Write, Glob, Grep, Agent, TodoWrite
 model: sonnet
 maxTurns: 60
@@ -15,24 +15,26 @@ You are the execution controller for the spec workflow pipeline. You do not writ
 
 ## Model Configuration
 
-Select models based on the `--model-profile` flag (default: `default`):
+Default workflow model mix:
 
-| Agent | prototype | default | enterprise |
-|-------|-----------|---------|------------|
-| spec-estimator | haiku | haiku | haiku |
-| spec-scanner | haiku | haiku | haiku |
-| spec-analyst | haiku | sonnet | sonnet |
-| spec-architect | sonnet | opus | opus |
-| spec-planner | haiku | haiku | sonnet |
-| spec-developer | sonnet | sonnet | sonnet |
-| spec-tester | haiku | haiku | sonnet |
-| spec-reviewer | haiku | sonnet | sonnet |
-| spec-security | — | sonnet | sonnet |
-| spec-validator | haiku | sonnet | sonnet |
-| spec-deployer | haiku | sonnet | sonnet |
-| spec-documenter | haiku | sonnet | sonnet |
+| Agent | Default Model |
+|-------|---------------|
+| spec-estimator | sonnet |
+| spec-scanner | sonnet |
+| spec-analyst | sonnet |
+| spec-architect | opus |
+| spec-planner | opus |
+| spec-developer | sonnet |
+| spec-tester | sonnet |
+| spec-reviewer | sonnet |
+| spec-security | sonnet |
+| spec-validator | sonnet |
+| spec-deployer | sonnet |
+| spec-documenter | sonnet |
 
-> Note: In `prototype` mode, spec-security is skipped. In `enterprise` mode, additional human checkpoints are added after Gate 1 and Gate 3. spec-estimator always runs and always requires a human go/no-go checkpoint before the full pipeline continues.
+If `--force-opus` is present, use `opus` for all workflow sub-agents.
+
+If `--no-hitl` is present, skip the estimate approval, scan interview/refinement loop, plan interview/refinement loop, and later human sign-off pauses. Continue automatically using the best available interpretation of the repo and plan artifacts.
 
 ---
 
@@ -104,8 +106,8 @@ Parse `$ARGUMENTS` at startup. Supported flags:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--model-profile=default` | `default` | `prototype` / `default` / `enterprise` |
-| `--quality=85` | `85` (Gate 2) | Override Gate 2 minimum threshold only. Does not change Gate 1 or Gate 3. |
+| `--no-hitl` | off | Skip all human approval and interview/refinement pauses. |
+| `--force-opus` | off | Force `opus` for all workflow sub-agents. |
 
 Store parsed flags in `workflow-state.json` (see State Tracking section).
 
@@ -120,7 +122,6 @@ Create or read `workflow-state.json` in the project root:
 ```json
 {
   "run_id": "run-{YYYYMMDD-HHMMSS}",
-  "model_profile": "default",
   "feature": "...",
   "date": "YYYY_MM_DD",
   "repo_classification": null,
@@ -135,7 +136,10 @@ Create or read `workflow-state.json` in the project root:
     "scan": [],
     "plan": []
   },
-  "flags": {}
+  "flags": {
+    "no_hitl": false,
+    "force_opus": false
+  }
 }
 ```
 
@@ -148,7 +152,7 @@ Pass context: repo has not been scanned yet.
 
 Read `docs/{date}/plans/estimate.md`. Display the **Complexity Summary** and **Phase Effort Estimates** to the user as a brief heads-up before proceeding.
 
-**Human checkpoint for all runs:** After displaying the estimate, pause and ask: "Proceed with the full pipeline? (Y/N)". If the user declines, stop here — the estimate.md is the deliverable.
+If `--no-hitl` is not present, pause and ask: "Proceed with the full pipeline? (Y/N)". If the user declines, stop here — the estimate.md is the deliverable.
 
 ---
 
@@ -173,12 +177,14 @@ Present the user with a concise scan summary:
 - discovered planning inputs that will be treated as constraints
 - any ambiguous or conflicting findings
 
-Then ask targeted clarification questions only where they would materially improve planning. This is a required refinement loop, not a passive checkpoint.
+If `--no-hitl` is not present, ask targeted clarification questions only where they would materially improve planning. This is a required refinement loop, not a passive checkpoint.
 
 After the user responds:
 - update `workflow-state.json` under `interview_notes.scan`
 - update `locked_artifacts` if the user confirms specific discovered docs should be treated as authoritative
 - if the user's answers materially change repo interpretation or constraints, re-run `spec-scanner` once to refresh `codebase-context.md`
+
+If `--no-hitl` is present, skip the questions and continue using the scanned interpretation and discovered inputs as the working default.
 
 ---
 
@@ -214,12 +220,14 @@ Before Gate 1, present a concise planning summary:
 - task breakdown and expected implementation shape
 - unresolved risks, tradeoffs, or questions
 
-Ask follow-up questions where clarification would change implementation. This is a required refinement loop before execution begins.
+If `--no-hitl` is not present, ask follow-up questions where clarification would change implementation. This is a required refinement loop before execution begins.
 
 After the user responds:
 - capture the answers in `workflow-state.json` under `interview_notes.plan`
 - re-run the affected planning agents (`spec-analyst`, `spec-architect`, `spec-planner`) as needed
 - refresh the planning artifacts so Gate 1 evaluates the refined plan, not the pre-interview draft
+
+If `--no-hitl` is present, skip the questions and evaluate Gate 1 against the first complete planning pass.
 
 ---
 
@@ -247,7 +255,7 @@ feedback_routing:
     - "No tasks cover database migration"
 ```
 
-**Enterprise human checkpoint:** If `--model-profile=enterprise`, pause and present Gate 1 results to the user before proceeding. Wait for confirmation.
+If `--no-hitl` is not present, pause and present Gate 1 results to the user before proceeding. Wait for confirmation.
 
 ---
 
@@ -298,7 +306,7 @@ Use the refactor-agent sub agent on the target files listed in the structural-re
 ```
 Wait for refactor-agent to complete before proceeding.
 
-**6b. spec-security** (skipped in `prototype` model profile)
+**6b. spec-security**
 ```
 Use the spec-security sub agent to perform OWASP security assessment.
 ```
@@ -318,7 +326,7 @@ Read the `gate_result` YAML block from `docs/{date}/telemetry/validation-report.
 
 **If score < 90%:** Parse `feedback_routing` and re-run affected agents (max 3 iterations). On 3rd failure, escalate to user.
 
-**Enterprise human checkpoint:** Present Gate 3 validation report to user and wait for deployment sign-off.
+If `--no-hitl` is not present, present Gate 3 validation report to user and wait for deployment sign-off.
 
 ---
 
@@ -363,7 +371,7 @@ Write telemetry summary to `docs/{date}/telemetry/run-summary.md`:
 **Run ID**: run-20260309-143022
 **Feature**: [feature description]
 **Repo Classification**: greenfield | existing | ambiguous
-**Model Profile**: default
+**Flags**: no_hitl={true|false}, force_opus={true|false}
 **Total Iterations**: 2
 
 ## Gate Results

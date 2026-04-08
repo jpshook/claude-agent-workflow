@@ -161,7 +161,7 @@ graph TD
   - Run the required interview/refinement loops after exploration and planning
   - Enforce quality gates with structured feedback routing
   - Maintain `workflow-state.json` for resumable runs
-  - Manage human checkpoints (enterprise profile)
+  - Manage human checkpoints unless `--no-hitl` is set
   - Write telemetry summary on completion
 - **Outputs**: `workflow-state.json`, `docs/{date}/telemetry/run-summary.md`
 
@@ -170,7 +170,7 @@ graph TD
 #### 9. spec-scanner
 
 - **Purpose**: Read-only codebase analysis for every workflow run
-- **Model**: haiku
+- **Model**: sonnet by default, `opus` with `--force-opus`
 - **Responsibilities**:
   - Detect tech stack, frameworks, and versions
   - Document coding conventions and patterns
@@ -190,7 +190,6 @@ graph TD
   - Run dependency vulnerability check
   - Produce severity-rated findings with remediation guidance
 - **Outputs**: `docs/{date}/reviews/security-report.md`
-- **Note**: Skipped in `prototype` model profile
 
 ## Quality Gate System
 
@@ -238,23 +237,24 @@ graph TD
 # Existing project with pre-existing architecture and ADRs already in-repo
 /agent-workflow "New reporting module"
 
-# Enterprise profile with human checkpoints
-/agent-workflow "CRM system" --model-profile=enterprise
+# Skip human-in-the-loop pauses
+/agent-workflow "Internal tool cleanup" --no-hitl
 
-# Prototype profile (fast, cheap, skips security)
-/agent-workflow "Quick MVP" --model-profile=prototype
-
-# Override Gate 2 quality threshold
-/agent-workflow "Internal tool" --quality=75
+# Force opus for all workflow tasks
+/agent-workflow "CRM system" --force-opus
 ```
 
-### Model Profiles
+### Runtime Flags
 
 ```bash
-# prototype  — haiku-heavy, no spec-security, single checkpoint at end
-# default    — opus for architecture, sonnet elsewhere (recommended)
-# enterprise — sonnet/opus everywhere, spec-security included, 2 human checkpoints
-/agent-workflow "..." --model-profile=prototype|default|enterprise
+# Default run: premium model mix with HITL enabled
+/agent-workflow "..."
+
+# Skip human approval and interview/refinement pauses
+/agent-workflow "..." --no-hitl
+
+# Force opus for all workflow tasks
+/agent-workflow "..." --force-opus
 ```
 
 ### Direct Agent Use
@@ -306,9 +306,9 @@ Use the spec-security agent: run OWASP security audit on src/
 
 ### 3. **Customization**
 
-- Adjust quality thresholds based on project needs
-- Skip agents for simpler projects
-- Add custom validation criteria
+- Use `--no-hitl` for lower-risk autonomous runs
+- Use `--force-opus` for especially high-stakes or ambiguous work
+- Keep the default quality gates unless you are changing the workflow itself
 - Integrate with existing processes
 
 ## Example Usage
@@ -324,8 +324,7 @@ supporting user authentication, task CRUD operations, and real-time updates
 
 ```bash
 /agent-workflow "Develop an enterprise resource planning system with microservices architecture, supporting inventory management, order processing, and financial reporting" \
-  --model-profile=enterprise \
-  --quality=98
+  --force-opus
 ```
 
 ### API-Only Service
@@ -360,7 +359,7 @@ supporting user authentication, task CRUD operations, and real-time updates
 ## Getting Started
 
 1. **Installation**: Save agent files to `.claude/agents/` directory
-2. **Configuration**: Adjust quality thresholds in orchestrator
+2. **Configuration**: Decide whether to use `--no-hitl` or `--force-opus` for a given run
 3. **First Project**: Try with a simple project to understand flow
 4. **Iterate**: Refine agent prompts based on your needs
 

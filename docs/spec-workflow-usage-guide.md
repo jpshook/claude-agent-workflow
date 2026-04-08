@@ -18,14 +18,14 @@ The Spec Agent Workflow System is a comprehensive AI-driven development pipeline
 # Existing project with pre-existing architecture docs already in the repo
 /agent-workflow "New reporting module"
 
-# Enterprise workflow with human review checkpoints
-/agent-workflow "Enterprise CRM" --model-profile=enterprise
-
-# Prototype — fast and cheap, skips security scan
-/agent-workflow "Quick proof of concept" --model-profile=prototype
-
 # Planning and refinement are built into the default run
 /agent-workflow "E-commerce platform"
+
+# Skip human-in-the-loop pauses
+/agent-workflow "Internal tool cleanup" --no-hitl
+
+# Force opus for all workflow tasks
+/agent-workflow "Rework permissions architecture" --force-opus
 
 # Direct orchestrator invocation
 Use the spec-orchestrator agent: Create a todo list web application with user authentication
@@ -40,9 +40,9 @@ Use the spec-orchestrator agent: Create a todo list web application with user au
 │   ├── spec-scanner.md         # Read-only codebase scan (always runs)
 │   ├── spec-analyst.md         # Requirements analysis (model: sonnet)
 │   ├── spec-architect.md       # System design (model: opus)
-│   ├── spec-planner.md         # Task planning (model: haiku)
+│   ├── spec-planner.md         # Task planning (model: opus)
 │   ├── spec-developer.md       # Code implementation, worktree isolated (model: sonnet)
-│   ├── spec-tester.md          # Write + execute tests (model: haiku)
+│   ├── spec-tester.md          # Write + execute tests (model: sonnet)
 │   ├── spec-reviewer.md        # Code review + ADR compliance (model: sonnet)
 │   ├── spec-security.md        # OWASP Top 10 security audit (model: sonnet)
 │   └── spec-validator.md       # Final scoring + gate decisions (model: sonnet)
@@ -53,7 +53,7 @@ Use the spec-orchestrator agent: Create a todo list web application with user au
 ├── frontend/
 │   └── senior-frontend-architect.md # React/Next.js expertise (model: opus)
 └── utility/
-    └── refactor-agent.md       # Background structural refactoring (model: haiku)
+    └── refactor-agent.md       # Background structural refactoring (model: sonnet)
 ```
 
 ## Workflow Examples
@@ -98,8 +98,7 @@ Create a personal blog platform with markdown support, user comments, and an adm
 **Project**: Add OAuth2 / Google SSO to an existing Node.js auth service
 
 **Command**:
-/agent-workflow "Add Google OAuth2 login alongside existing email/password auth" \
-  --model-profile=default
+/agent-workflow "Add Google OAuth2 login alongside existing email/password auth"
 
 **Workflow Execution**:
 
@@ -141,7 +140,7 @@ Create a personal blog platform with markdown support, user comments, and an adm
 **Project**: Multi-tenant SaaS CRM
 
 **Input to spec-orchestrator**:
---model-profile=enterprise --quality=95
+--force-opus
 Build an enterprise CRM system with multi-tenancy, role-based access control, 
 API integrations, and real-time analytics dashboard
 
@@ -209,23 +208,18 @@ spec-orchestrator coordinates with ui-ux-master for design specs
 ```bash
 /agent-workflow "<feature description>" [flags]
 
-# Mode
-# Model profile
---model-profile=prototype  # haiku-heavy, fast, no security scan
---model-profile=default    # Balanced (opus for architecture, sonnet elsewhere)
---model-profile=enterprise # Thorough, human checkpoints at Gate 1 + Gate 3
-
-# Quality
---quality=85               # Gate 2 minimum threshold only (default: 85, range: 70-99)
+# Runtime control
+--no-hitl                  # Skip all human approval and interview/refinement pauses
+--force-opus               # Force opus for all workflow sub-agents
 
 ```
 
 Notes:
+- The default workflow uses the premium model mix: `sonnet` for most stages and `opus` for architecture and planning.
 - `spec-scanner` always runs first and determines whether the repo is effectively greenfield, existing, or ambiguous.
 - Scanner also auto-discovers requirements docs, architecture docs, ADRs, tech stack docs, and constraints docs already present in the repo.
-- `--quality` only changes Gate 2. Gate 1 and Gate 3 remain fixed.
-- The workflow now includes a required interview/refinement loop after scanning and another after planning.
-- The workflow does not define `--quality-threshold`, `--skip-agents`, `--focus`, `--verbose`, `--debug`, `--existing-code`, or `--from-requirements`.
+- The workflow now includes a required interview/refinement loop after scanning and another after planning, unless `--no-hitl` is set.
+- `--force-opus` upgrades every workflow sub-agent to `opus`.
 
 ### Individual Agent Usage
 
@@ -333,23 +327,21 @@ Failure Actions:
 ### Pattern 1: Rapid Prototyping
 
 ```bash
-# Lower Gate 2 strictness for an internal MVP
+# Skip refinement pauses for an internal MVP
 /agent-workflow "Create a simple landing page with email capture" \
-  --model-profile=prototype \
-  --quality=75
+  --no-hitl
 
-# Results in faster but less comprehensive output
+# Results in faster execution with fewer pauses
 ```
 
 ### Pattern 2: High-Security Application
 
 ```bash
-# Use the strictest supported profile and threshold
+# Use maximum reasoning depth across the workflow
 /agent-workflow "Create a banking transaction system with fraud detection" \
-  --model-profile=enterprise \
-  --quality=95
+  --force-opus
 
-# Includes spec-security and extra human checkpoints
+# Best for especially high-stakes or ambiguous work
 ```
 
 ### Pattern 3: Performance-Critical System
@@ -357,7 +349,7 @@ Failure Actions:
 ```bash
 # State the performance target directly in the feature request
 /agent-workflow "Create a real-time trading platform with less than 10ms latency" \
-  --model-profile=enterprise
+  --force-opus
 
 # Performance goals should live in the requirements, not in hidden workflow flags
 ```
@@ -367,7 +359,7 @@ Failure Actions:
 ```bash
 # Scan and plan against an existing codebase without writing code
 /agent-workflow "Modernize legacy PHP application toward a modular service architecture" \
-  --model-profile=default
+  --no-hitl
 
 # Runs scanner, asks clarifying questions, and plans before implementation
 ```
@@ -391,8 +383,8 @@ Failure Actions:
 3. **Performance Problems**
    - Enable parallel execution
    - Skip non-critical agents
-   - Reduce quality thresholds for prototypes
-   - Use phase-specific execution
+   - Use `--no-hitl` only for lower-risk autonomous runs
+   - Use `--force-opus` when deeper reasoning is worth the extra cost
 
 ### Debug Mode
 
@@ -409,7 +401,7 @@ Use the spec-scanner agent: scan this codebase
 - Have a clear project description
 - Gather any existing documentation
 - Define success criteria upfront
-- Set appropriate quality thresholds
+- Decide whether the run should stay HITL-on or use `--no-hitl`
 
 ### 2. **Workflow Optimization**
 
@@ -419,7 +411,7 @@ Use the spec-scanner agent: scan this codebase
 
 ### 3. **Quality Management**
 
-- Don't lower thresholds without good reason
+- Keep the default quality gates unless you are changing the workflow itself
 - Address quality issues immediately
 - Use feedback loops effectively
 - Track quality trends over time
@@ -447,7 +439,7 @@ jobs:
       - name: Run Spec Workflow
         run: |
           claude-code spec-orchestrator \
-            --quality 90
+            --no-hitl
 ```
 
 ## Conclusion

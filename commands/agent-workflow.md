@@ -14,8 +14,9 @@ Pass your feature description as the argument, optionally with flags:
 ```
 /agent-workflow "Create a user authentication system"
 /agent-workflow "Add OAuth2 login to the existing auth service"
-/agent-workflow "Enterprise CRM with multi-tenancy" --model-profile=enterprise --quality=90
-/agent-workflow "Quick prototype" --model-profile=prototype
+/agent-workflow "Enterprise CRM with multi-tenancy"
+/agent-workflow "Internal tool cleanup" --no-hitl
+/agent-workflow "Redesign permissions architecture" --force-opus
 /agent-workflow "New API endpoints for partner reporting"
 ```
 
@@ -23,21 +24,23 @@ Pass your feature description as the argument, optionally with flags:
 
 | Flag | Default | Options / Example |
 |------|---------|-------------------|
-| `--model-profile` | `default` | `prototype` = fastest and cheapest, skips `spec-security`. `default` = recommended. `enterprise` = extra human checkpoints. |
-| `--quality` | `85` | Gate 2 threshold only. Integer `70-99`. Higher means stricter development/test validation before proceeding. |
+| `--no-hitl` | off | Skip all human approval and interview/refinement pauses. |
+| `--force-opus` | off | Force `opus` for all workflow sub-agents. |
 
 ### Flag Notes
 
 - `spec-scanner` runs on every workflow invocation. It determines whether the repo is effectively greenfield or established.
 - The scanner also discovers architecture docs, ADRs, tech stack docs, and other constraints automatically and reports them before planning continues.
-- `--quality` affects Gate 2 only. Gate 1 and Gate 3 remain fixed at 95 and 90.
+- The default workflow uses the premium model mix: `sonnet` for most stages, `opus` for architecture and planning.
 - A required interview/refinement loop is built into the workflow: once after scanning and once after planning.
+- `--no-hitl` skips the estimate approval, both refinement loops, and later sign-off pauses.
+- `--force-opus` upgrades every workflow sub-agent to `opus`.
 
-## Model Profiles
+## Runtime Defaults
 
-- **prototype** — haiku-heavy, skips spec-security, estimate checkpoint first, then final checkpoint at end. Fast and cheap.
-- **default** — balanced; opus for architecture, sonnet elsewhere. Recommended for most projects.
-- **enterprise** — sonnet/opus everywhere, includes spec-security, estimate checkpoint first, plus human checkpoints after Gate 1 and Gate 3.
+- Default: premium model mix with HITL enabled.
+- Optional: `--no-hitl` for autonomous execution.
+- Optional: `--force-opus` for maximum reasoning depth.
 
 ## Pipeline (Full Run)
 
@@ -66,7 +69,7 @@ spec-tester → tests/, test-results.md
       ↓ PASS
 spec-reviewer → code-review.md
       ↓ (refactor-agent if structural issues flagged)
-spec-security → security-report.md   [skipped in prototype]
+spec-security → security-report.md
       ↓
  ── GATE 3 (≥ 90%) ──
       ↓ PASS
