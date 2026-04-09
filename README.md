@@ -286,6 +286,8 @@ Notes:
 
 Agents communicate through structured file artifacts. Each agent reads the outputs of previous agents and produces its own outputs to `docs/{YYYY_MM_DD}/`. The orchestrator maintains `workflow-state.json` to track progress and enable resumable runs.
 
+The orchestrator also uses a small lifecycle hook model for cross-cutting operational behavior. Hooks are intentionally phase-level, not per-agent plugins, so the core pipeline stays easy to reason about while resume handling, checkpoints, retries, telemetry, and cleanup stay consistent.
+
 When a gate fails, spec-validator produces a structured YAML feedback block:
 
 ```yaml
@@ -303,6 +305,64 @@ feedback_routing:
 ```
 
 The orchestrator reads this and re-runs only the specific agents that need to address the feedback — not the entire pipeline.
+
+### Lifecycle Hooks
+
+The workflow now defines these explicit lifecycle hooks:
+
+| Hook | Purpose |
+|------|---------|
+| `on_run_start` | Initialize or normalize run state and telemetry |
+| `before_phase` | Validate prerequisites and mark the active phase |
+| `after_phase` | Record artifacts and summarize successful phase output |
+| `on_user_checkpoint` | Standardize estimate approval, refinement loops, gate review pauses, and deployment sign-off |
+| `on_gate_fail` | Centralize retry counts, feedback routing, and escalation decisions |
+| `on_resume` | Validate saved checkpoints, artifacts, and worktree state before resuming |
+| `on_run_complete` | Publish final run status and summary |
+| `on_run_abort` | Persist blocked or cancelled status with clear blockers |
+| `on_cleanup` | Clean temporary workflow resources after success, abort, or stale resume detection |
+
+These hooks provide leverage mainly in operations:
+- resume becomes safer because the orchestrator validates artifacts and stale worktree state before continuing
+- gate failure behavior is handled the same way across Gate 1, 2, and 3
+- estimate approval, scan refinement, plan refinement, and deployment sign-off all follow the same checkpoint path
+- cleanup becomes part of the workflow contract instead of a separate manual concern
+
+For the concrete transition model, hook ordering, and mutation rules, see [orchestrator-lifecycle-spec.md](/Users/jpshook/Code/claude-agent-workflow/docs/orchestrator-lifecycle-spec.md).
+
+### Workflow State
+
+`workflow-state.json` now needs to track a little more than gate scores so lifecycle actions have reliable inputs:
+
+```json
+{
+  "run_id": "run-{YYYYMMDD-HHMMSS}",
+  "feature": "...",
+  "date": "YYYY_MM_DD",
+  "phase": "estimation|scan|planning|development|validation|delivery|complete|aborted",
+  "status": "running|paused|blocked|completed|aborted",
+  "active_checkpoint": null,
+  "retry_counts": {
+    "gate1": 0,
+    "gate2": 0,
+    "gate3": 0
+  },
+  "artifacts": {},
+  "agents_completed": [],
+  "locked_artifacts": {},
+  "interview_notes": {
+    "scan": [],
+    "plan": []
+  }
+}
+```
+
+Recommended checkpoint names:
+- `estimate-approval`
+- `scan-refinement`
+- `plan-refinement`
+- `gate1-review`
+- `deployment-signoff`
 
 ## Agent Reference
 
@@ -457,6 +517,8 @@ bash scripts/cleanup-worktrees.sh --all          # remove all without prompting
 
 ```
 
+The cleanup script still matters as a recovery tool, but the orchestrator lifecycle now treats cleanup as a first-class post-run action through `on_cleanup`.
+
 ### Extending the System
 
 To add a new specialist agent:
@@ -483,7 +545,7 @@ To add a new specialist agent:
 ### Workflow Stuck or Interrupted
 
 - Check `workflow-state.json` for the current `phase` and `agents_completed` list
-- Re-run the same command — the orchestrator will offer to resume from the last checkpoint
+- Re-run the same command — the orchestrator will offer to resume from the last checkpoint and validate saved artifacts before continuing
 - To force a fresh start, delete `workflow-state.json`
 
 ### Existing Codebase Pattern Drift

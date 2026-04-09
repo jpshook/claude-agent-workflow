@@ -218,8 +218,27 @@ Notes:
 - The default workflow uses the premium model mix: `sonnet` for most stages and `opus` for architecture and planning.
 - `spec-scanner` always runs first and determines whether the repo is effectively greenfield, existing, or ambiguous.
 - Scanner also auto-discovers requirements docs, architecture docs, ADRs, tech stack docs, and constraints docs already present in the repo.
+- The orchestrator now uses explicit lifecycle hooks for resume validation, checkpoints, gate-failure handling, and cleanup.
 - The workflow now includes a required interview/refinement loop after scanning and another after planning, unless `--no-hitl` is set.
 - `--force-opus` upgrades every workflow sub-agent to `opus`.
+
+### Lifecycle Checkpoints and Resume
+
+The orchestrator standardizes these pause points through a shared lifecycle checkpoint path:
+
+- `estimate-approval`
+- `scan-refinement`
+- `plan-refinement`
+- `gate1-review`
+- `deployment-signoff`
+
+If a run is interrupted, re-running the same workflow should:
+
+1. Load `workflow-state.json`
+2. Trigger resume validation for artifacts and temporary worktree state
+3. Offer to continue from the last safe checkpoint or start fresh
+
+This reduces the chance of resuming into stale state after a partially completed implementation pass.
 
 ### Individual Agent Usage
 

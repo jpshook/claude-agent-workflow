@@ -113,6 +113,76 @@ Store parsed flags in `workflow-state.json` (see State Tracking section).
 
 ---
 
+## Lifecycle Hooks
+
+The workflow uses a small set of lifecycle hooks for cross-cutting operational behavior. These hooks are orchestration concerns only. They do not replace phase sequencing, gate enforcement, or specialist agent ownership.
+
+Use hooks to keep retry handling, checkpoints, resume safety, cleanup, and telemetry consistent across the run.
+
+### Supported Hooks
+
+| Hook | When It Fires | Primary Use |
+|------|---------------|-------------|
+| `on_run_start` | After args are parsed and state is initialized or loaded | Normalize state, capture invocation metadata, initialize telemetry |
+| `before_phase` | Immediately before entering a major phase | Mark active phase, announce intent, validate prerequisites |
+| `after_phase` | Immediately after a major phase finishes successfully | Record outputs, update state, summarize artifacts |
+| `on_user_checkpoint` | Before any human confirmation or refinement pause | Present checkpoint context, collect response, update checkpoint state |
+| `on_gate_fail` | Whenever Gate 1, Gate 2, or Gate 3 fails | Centralize retry bookkeeping, feedback routing, escalation logic |
+| `on_resume` | When `workflow-state.json` from a prior run is detected and resumed | Validate checkpoint safety, rehydrate run context, detect stale artifacts |
+| `on_run_complete` | After all phases and final telemetry are written | Publish final status and completion summary |
+| `on_run_abort` | On user cancellation, unrecoverable failure, or max retries exceeded | Persist blocked status, summarize blockers, trigger cleanup |
+| `on_cleanup` | After completion or abort, and after invalid resume validation if stale state is found | Clean worktrees/temp state and close the run cleanly |
+
+### Hook Payload Contract
+
+Every hook operates on the same core workflow context:
+
+```json
+{
+  "run_id": "run-{YYYYMMDD-HHMMSS}",
+  "feature": "...",
+  "date": "YYYY_MM_DD",
+  "phase": "estimation|scan|planning|development|validation|delivery|complete|aborted",
+  "status": "running|paused|blocked|completed|aborted",
+  "active_checkpoint": null,
+  "repo_classification": null,
+  "flags": {
+    "no_hitl": false,
+    "force_opus": false
+  },
+  "retry_counts": {
+    "gate1": 0,
+    "gate2": 0,
+    "gate3": 0
+  },
+  "agents_completed": [],
+  "artifacts": {},
+  "locked_artifacts": {},
+  "interview_notes": {
+    "scan": [],
+    "plan": []
+  }
+}
+```
+
+Hook-specific fields may be added as needed:
+- `checkpoint_type`: `estimate-approval`, `scan-refinement`, `plan-refinement`, `gate1-review`, `deployment-signoff`
+- `gate`: `1`, `2`, or `3`
+- `feedback_routing`: parsed YAML feedback for a failed gate
+- `resume_validation`: artifact/worktree validation results
+- `blockers`: unresolved issues preventing progress
+
+### Hook Rules
+
+- Hooks are orchestration helpers, not extension points for arbitrary phase logic.
+- Keep hooks idempotent where possible so resume behavior is safe.
+- `before_phase` and `after_phase` fire only for major phases, not every sub-agent invocation.
+- `on_user_checkpoint` is the single path for estimate approval, scan refinement, plan refinement, gate review pauses, and deployment sign-off.
+- `on_gate_fail` owns retry count updates and decides whether to retry or escalate.
+- `on_cleanup` should run after both successful completion and aborted runs.
+
+---
+
 ## Execution Steps
 
 ### Step 0 — Initialise State (and run estimator)
@@ -124,13 +194,22 @@ Create or read `workflow-state.json` in the project root:
   "run_id": "run-{YYYYMMDD-HHMMSS}",
   "feature": "...",
   "date": "YYYY_MM_DD",
+  "phase": "estimation",
+  "status": "running",
+  "active_checkpoint": null,
   "repo_classification": null,
   "gate1_score": null,
   "gate2_score": null,
   "gate3_score": null,
   "iteration": 1,
   "max_iterations": 3,
+  "retry_counts": {
+    "gate1": 0,
+    "gate2": 0,
+    "gate3": 0
+  },
   "agents_completed": [],
+  "artifacts": {},
   "locked_artifacts": {},
   "interview_notes": {
     "scan": [],
@@ -143,6 +222,15 @@ Create or read `workflow-state.json` in the project root:
 }
 ```
 
+Immediately invoke `on_run_start` after initializing or loading state.
+
+If a prior run is resumed, invoke `on_resume` before continuing to any phase work. `on_resume` must validate that:
+- required artifacts for the checkpoint still exist
+- worktree-dependent tasks do not point to stale paths
+- the repository has not obviously drifted from the saved checkpoint assumptions
+
+If resume validation fails, record the issue and run `on_cleanup` on stale temporary state before asking the user whether to resume manually from an earlier safe point or start fresh
+
 After initialising state, run the estimator:
 
 ```
@@ -152,11 +240,13 @@ Pass context: repo has not been scanned yet.
 
 Read `docs/{date}/plans/estimate.md`. Display the **Complexity Summary** and **Phase Effort Estimates** to the user as a brief heads-up before proceeding.
 
-If `--no-hitl` is not present, pause and ask: "Proceed with the full pipeline? (Y/N)". If the user declines, stop here — the estimate.md is the deliverable.
+If `--no-hitl` is not present, invoke `on_user_checkpoint` with `checkpoint_type=estimate-approval`, then ask: "Proceed with the full pipeline? (Y/N)". If the user declines, invoke `on_run_abort` with reason `user_declined_after_estimate`, run `on_cleanup`, and stop here — the estimate.md is the deliverable.
 
 ---
 
 ### Step 1 — Repository Scan
+
+Invoke `before_phase` with `phase=scan`.
 
 ```
 Use the spec-scanner sub agent to analyse the codebase and produce codebase-context.md.
@@ -168,6 +258,8 @@ Read `codebase-context.md` and store:
 - the file path to `codebase-context.md`
 
 Update `workflow-state.json` with the classification and discovered inputs.
+Record `codebase-context.md` under `artifacts`.
+Invoke `after_phase` with `phase=scan`.
 
 ### Step 1a — Scan Interview / Refinement Loop
 
@@ -177,7 +269,7 @@ Present the user with a concise scan summary:
 - discovered planning inputs that will be treated as constraints
 - any ambiguous or conflicting findings
 
-If `--no-hitl` is not present, ask targeted clarification questions only where they would materially improve planning. This is a required refinement loop, not a passive checkpoint.
+If `--no-hitl` is not present, invoke `on_user_checkpoint` with `checkpoint_type=scan-refinement`, then ask targeted clarification questions only where they would materially improve planning. This is a required refinement loop, not a passive checkpoint.
 
 After the user responds:
 - update `workflow-state.json` under `interview_notes.scan`
@@ -189,6 +281,8 @@ If `--no-hitl` is present, skip the questions and continue using the scanned int
 ---
 
 ### Step 2 — Planning Phase
+
+Invoke `before_phase` with `phase=planning`.
 
 Run sequentially:
 
@@ -210,6 +304,8 @@ Use the spec-planner sub agent to create task breakdown from requirements.md and
 Pass context: codebase-context={path}, repo-classification={classification}, interview-notes={scan notes}, and any discovered constraints, integration notes, or contracts documents.
 ```
 
+Invoke `after_phase` with `phase=planning`.
+
 ---
 
 ### Step 3 — Plan Interview / Refinement Loop
@@ -220,7 +316,7 @@ Before Gate 1, present a concise planning summary:
 - task breakdown and expected implementation shape
 - unresolved risks, tradeoffs, or questions
 
-If `--no-hitl` is not present, ask follow-up questions where clarification would change implementation. This is a required refinement loop before execution begins.
+If `--no-hitl` is not present, invoke `on_user_checkpoint` with `checkpoint_type=plan-refinement`, then ask follow-up questions where clarification would change implementation. This is a required refinement loop before execution begins.
 
 After the user responds:
 - capture the answers in `workflow-state.json` under `interview_notes.plan`
@@ -241,7 +337,7 @@ Read `docs/{date}/plans/tasks.md`. Evaluate planning quality by checking:
 
 **If score ≥ 95%:** Record in `workflow-state.json`, proceed to Step 5.
 
-**If score < 95%:** Produce structured feedback and loop back to spec-analyst (max 3 iterations):
+**If score < 95%:** Invoke `on_gate_fail` with `gate=1`, increment `retry_counts.gate1`, produce structured feedback, and loop back to spec-analyst (max 3 iterations):
 ```yaml
 gate1_result:
   score: 82
@@ -255,11 +351,15 @@ feedback_routing:
     - "No tasks cover database migration"
 ```
 
-If `--no-hitl` is not present, pause and present Gate 1 results to the user before proceeding. Wait for confirmation.
+If `on_gate_fail` determines max retries are exceeded, invoke `on_run_abort`, present unresolved blockers, run `on_cleanup`, and stop.
+
+If `--no-hitl` is not present, invoke `on_user_checkpoint` with `checkpoint_type=gate1-review`, then pause and present Gate 1 results to the user before proceeding. Wait for confirmation.
 
 ---
 
 ### Step 5 — Development Phase
+
+Invoke `before_phase` with `phase=development`.
 
 Run sequentially, then in parallel:
 
@@ -275,6 +375,8 @@ Use the spec-tester sub agent to write and execute tests for the implementation.
 Pass context: codebase-context={path}, repo-classification={classification}, interview-notes={scan + plan notes}.
 ```
 
+Invoke `after_phase` with `phase=development`.
+
 ---
 
 ### Step 6 — Gate 2 (Development Quality ≥ 85%)
@@ -288,11 +390,13 @@ Read the `gate_result` YAML block from `docs/{date}/telemetry/validation-report.
 
 **If score ≥ 85%:** Record in `workflow-state.json`, proceed to Step 7.
 
-**If score < 85%:** Parse `feedback_routing` and re-run affected agents (max 3 iterations). On 3rd failure, escalate to user with the unresolved blockers list.
+**If score < 85%:** Invoke `on_gate_fail` with `gate=2`, parse `feedback_routing`, and re-run affected agents (max 3 iterations). On 3rd failure, invoke `on_run_abort`, escalate to user with the unresolved blockers list, run `on_cleanup`, and stop.
 
 ---
 
 ### Step 7 — Validation Phase
+
+Invoke `before_phase` with `phase=validation`.
 
 **6a. spec-reviewer**
 ```
@@ -311,6 +415,8 @@ Wait for refactor-agent to complete before proceeding.
 Use the spec-security sub agent to perform OWASP security assessment.
 ```
 
+Invoke `after_phase` with `phase=validation`.
+
 ---
 
 ### Step 8 — Gate 3 (Release Readiness ≥ 90%)
@@ -324,13 +430,15 @@ Read the `gate_result` YAML block from `docs/{date}/telemetry/validation-report.
 
 **If score ≥ 90%:** Record approval in `workflow-state.json`.
 
-**If score < 90%:** Parse `feedback_routing` and re-run affected agents (max 3 iterations). On 3rd failure, escalate to user.
+**If score < 90%:** Invoke `on_gate_fail` with `gate=3`, parse `feedback_routing`, and re-run affected agents (max 3 iterations). On 3rd failure, invoke `on_run_abort`, escalate to user, run `on_cleanup`, and stop.
 
-If `--no-hitl` is not present, present Gate 3 validation report to user and wait for deployment sign-off.
+If `--no-hitl` is not present, invoke `on_user_checkpoint` with `checkpoint_type=deployment-signoff`, then present Gate 3 validation report to user and wait for deployment sign-off.
 
 ---
 
 ### Step 9 — Post-Validation (Deployment & Docs)
+
+Invoke `before_phase` with `phase=delivery`.
 
 Run sequentially:
 
@@ -348,6 +456,8 @@ Pass context: codebase-context={path}, repo-classification={classification}, int
 
 spec-documenter has `background: true` but runs after spec-deployer since it references the deploy config. Do not run them concurrently.
 
+Invoke `after_phase` with `phase=delivery`.
+
 ---
 
 ### Step 10 — Completion
@@ -356,6 +466,8 @@ Update `workflow-state.json`:
 ```json
 {
   "repo_classification": "existing",
+  "phase": "complete",
+  "status": "completed",
   "gate1_score": 97,
   "gate2_score": 88,
   "gate3_score": 92,
@@ -419,6 +531,9 @@ Write telemetry summary to `docs/{date}/telemetry/run-summary.md`:
 - README.md (updated)
 ```
 
+Invoke `on_run_complete` after writing the summary.
+Invoke `on_cleanup` after successful completion to clean temporary workflow resources such as stale worktrees created during isolated implementation.
+
 Present the summary to the user with a clear ✅ DONE or ⚠️ BLOCKED status.
 
 ---
@@ -428,6 +543,23 @@ Present the summary to the user with a clear ✅ DONE or ⚠️ BLOCKED status.
 Maintain `workflow-state.json` throughout the run. Re-read it at the start of each step in case the session was interrupted. This enables resuming from a checkpoint rather than restarting from scratch.
 
 If the file exists from a prior interrupted run, ask the user: "I found a previous run (run-{id}) at phase `{phase}`. Resume from that checkpoint, or start fresh?"
+
+Minimum state fields the orchestrator must keep current:
+- `phase`
+- `status`
+- `active_checkpoint`
+- `retry_counts`
+- `agents_completed`
+- `artifacts`
+- `locked_artifacts`
+- `interview_notes`
+
+Recommended checkpoint values:
+- `estimate-approval`
+- `scan-refinement`
+- `plan-refinement`
+- `gate1-review`
+- `deployment-signoff`
 
 ---
 

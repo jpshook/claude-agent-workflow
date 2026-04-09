@@ -158,6 +158,7 @@ graph TD
 - **Responsibilities**:
   - Parse input flags and build workflow config
   - Sequence agents and route artifacts between them
+  - Invoke lifecycle hooks for start, resume, phase boundaries, checkpoints, gate failures, completion, abort, and cleanup
   - Run the required interview/refinement loops after exploration and planning
   - Enforce quality gates with structured feedback routing
   - Maintain `workflow-state.json` for resumable runs
@@ -222,6 +223,46 @@ graph TD
   - Documentation complete
   - Code review passed (no Critical issues)
 - **Action**: If fail, spec-validator produces structured `feedback_routing` YAML; orchestrator re-runs only the affected agents (max 3 iterations)
+
+## Lifecycle Hook Model
+
+The workflow now makes a small number of lifecycle actions explicit. This is not a general plugin architecture. It is a lightweight orchestration model for the operational concerns that cut across phases.
+
+### Supported Hooks
+
+| Hook | Trigger | Main Responsibility |
+|------|---------|---------------------|
+| `on_run_start` | After args are parsed and state is initialized or loaded | Initialize run metadata and telemetry |
+| `before_phase` | Before `scan`, `planning`, `development`, `validation`, or `delivery` | Mark active phase and validate prerequisites |
+| `after_phase` | After a phase finishes successfully | Record artifacts and summarize outputs |
+| `on_user_checkpoint` | Before estimate approval, scan refinement, plan refinement, gate review pauses, and deployment sign-off | Standardize pause and response handling |
+| `on_gate_fail` | When any quality gate fails | Update retry counts, route feedback, decide retry vs escalation |
+| `on_resume` | When continuing from prior `workflow-state.json` | Validate artifacts, checkpoint safety, and temporary resources |
+| `on_run_complete` | After final summary is written | Publish completion status |
+| `on_run_abort` | On user cancel, hard failure, or retry exhaustion | Persist blocked or aborted state with blockers |
+| `on_cleanup` | After completion or abort, and after invalid stale resume detection | Clean worktrees and temporary workflow state |
+
+### Why These Hooks Exist
+
+- They keep the main orchestrator focused on sequencing specialist agents.
+- They make resume and cleanup part of the workflow contract rather than ad hoc recovery behavior.
+- They normalize similar moments such as human checkpoints and gate failures.
+- They create stable attachment points for future telemetry or notifications without changing the pipeline shape.
+
+### State Requirements
+
+To support lifecycle behavior safely, `workflow-state.json` should track at least:
+
+- `phase`
+- `status`
+- `active_checkpoint`
+- `retry_counts`
+- `agents_completed`
+- `artifacts`
+- `locked_artifacts`
+- `interview_notes`
+
+For the executable-style lifecycle contract, including the transition table and hook ordering rules, see [orchestrator-lifecycle-spec.md](/Users/jpshook/Code/claude-agent-workflow/docs/orchestrator-lifecycle-spec.md).
 
 ## Workflow Commands
 
