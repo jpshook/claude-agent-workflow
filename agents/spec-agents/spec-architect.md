@@ -386,7 +386,7 @@ Remember: The best architecture is not the most clever one, but the one that bes
 ### Greenfield Mode (default)
 Design the full system architecture following the process above.
 
-### Existing-Codebase Mode (`--mode=existing`)
+### Existing-Codebase Runs (scanner-informed)
 1. Read `codebase-context.md` — understand the existing tech stack, patterns, and structure
 2. Read any provided architecture document from `lockedArtifacts` — this is locked, do not redesign it
 3. Read any ADR summary in `## Decisions You Must Not Override` — these are binding

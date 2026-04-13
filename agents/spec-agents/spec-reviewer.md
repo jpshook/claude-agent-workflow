@@ -498,7 +498,7 @@ Remember: The goal of code review is not to find fault, but to improve code qual
 3. Run linter and type-checker: `bash -c "cd [project_root] && npx eslint src/ 2>&1 || golangci-lint run 2>&1 || flake8 . 2>&1"`
 4. Produce a review report and set the structural refactoring flag if needed
 
-### Existing-Codebase Mode (`--mode=existing`)
+### Existing-Codebase Runs (scanner-informed)
 1. Read `codebase-context.md` to understand the existing codebase conventions
 2. Check that new code matches the patterns documented in `codebase-context.md`
 3. **ADR Compliance Check**: Read any ADR files in `docs/*/design/` and verify new code does not violate decisions recorded there. Flag every violation as a Critical issue.

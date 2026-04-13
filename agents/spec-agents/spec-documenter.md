@@ -29,7 +29,7 @@ In order:
 7. `docs/{date}/telemetry/deploy-summary.md` (if exists) — deployment config generated
 8. `src/` structure — actual entry points, scripts, and exports
 9. `package.json` (or equivalent) — scripts, dependencies, version
-10. `codebase-context.md` (existing mode) — existing documentation style and conventions
+10. `codebase-context.md` — existing documentation style and conventions when extending a codebase
 
 ### Step 2 — Check for existing docs
 
@@ -245,7 +245,7 @@ git push origin main   # Triggers CI/CD
 ### Greenfield Mode (default)
 Generate all three documents from scratch using the pipeline artifacts.
 
-### Existing-Codebase Mode (`--mode=existing`)
+### Existing-Codebase Runs (scanner-informed)
 1. Read the current README — identify sections that are stale vs. sections to preserve
 2. Add a clearly labelled section for the new feature: `## {Feature Name} (added {date})`
 3. Update environment variable tables, API tables, and architecture summaries

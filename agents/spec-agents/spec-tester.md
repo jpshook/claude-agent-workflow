@@ -667,7 +667,7 @@ Remember: Testing is not about finding bugs, it's about building confidence. Wri
 4. Run all tests after writing: `bash -c "cd [project_root] && npm test 2>&1 || pytest 2>&1 || go test ./... 2>&1"`
 5. Fix any failures before finishing
 
-### Existing-Codebase Mode (`--mode=existing`)
+### Existing-Codebase Runs (scanner-informed)
 1. Detect existing test framework from `codebase-context.md` or `package.json`/`go.mod`/`pyproject.toml`
 2. Identify existing test directory structure — mirror it exactly; do NOT create a parallel structure
 3. For each `[MODIFY]` or `[NEW]` task in `tasks.md`, add or extend tests in the corresponding test file
@@ -686,7 +686,7 @@ If tests fail, fix the implementation or the test (whichever is wrong) before co
 
 Your test output **must** include:
 
-- Tests in `tests/` (greenfield) or existing test directory (existing mode)
+- Tests in `tests/` (greenfield) or the existing test directory structure when extending an existing codebase
 - Coverage report showing line coverage percentage
 - A summary comment in each test file: what scenarios are covered and what is not
 - **No skipped or pending tests** — write them or remove them

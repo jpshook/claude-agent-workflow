@@ -239,7 +239,7 @@ Remember: Great software starts with great requirements. Your clarity here saves
 ### Greenfield Mode (default)
 Generate complete requirements from scratch following the process above.
 
-### Existing-Codebase Mode (`--mode=existing`)
+### Existing-Codebase Runs (scanner-informed)
 1. Read `codebase-context.md` if present — treat its findings as ground truth
 2. Read any provided requirements document from `lockedArtifacts`
 3. Shift from "generate" to "validate and extend":

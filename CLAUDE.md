@@ -37,19 +37,16 @@ Claude Sub-Agent Spec Workflow System - A comprehensive AI-driven development wo
 /agent-workflow "Create a todo list web application with user authentication"
 
 # Extend an existing codebase
-/agent-workflow "Add OAuth2 login" --mode=existing --input-architecture=./ARCHITECTURE.md
+/agent-workflow "Add OAuth2 login"
 
-# Enterprise project with human checkpoints
-/agent-workflow "Enterprise CRM with multi-tenancy" --model-profile=enterprise
+# High-stakes project with maximum reasoning
+/agent-workflow "Enterprise CRM with multi-tenancy" --force-opus
 
-# Quick prototype (cheaper, skips security scan)
-/agent-workflow "Prototype payment flow" --model-profile=prototype
+# Quick autonomous run
+/agent-workflow "Prototype payment flow" --no-hitl
 
-# Provide pre-existing architecture and ADR docs
-/agent-workflow "New API module" --mode=existing --input-adr=./docs/adrs/ --input-tech-stack=./docs/tech-stack.md
-
-# Run only the planning phase
-/agent-workflow "E-commerce platform" --phase=planning
+# Autonomous run with max reasoning
+/agent-workflow "New API module" --no-hitl --force-opus
 
 # Start workflow manually with orchestrator
 Use spec-orchestrator: Create an enterprise CRM system with multi-tenancy support
@@ -99,7 +96,7 @@ The system follows a three-phase approach with quality gates:
    - *(human checkpoint for all runs — proceed Y/N before committing to full run)*
 
 1. **Planning Phase (20-25% of project time)**
-   - spec-scanner *(existing mode only)*: Codebase analysis → `codebase-context.md`
+   - spec-scanner *(always runs)*: Codebase analysis → `codebase-context.md`
    - spec-analyst: Requirements analysis and user stories → `docs/{date}/specs/`
    - spec-architect: System architecture, API design, ADRs → `docs/{date}/design/`
    - spec-planner: Task breakdown and test plan → `docs/{date}/plans/`
@@ -113,7 +110,7 @@ The system follows a three-phase approach with quality gates:
 3. **Validation Phase (15-20% of project time)**
    - spec-reviewer: Code review, ADR compliance, refactoring flag → `docs/{date}/reviews/`
    - refactor-agent *(if structural issues flagged)*: Background structural refactoring
-   - spec-security *(default + enterprise profiles)*: OWASP Top 10 audit → `docs/{date}/reviews/`
+   - spec-security *(runs by default)*: OWASP Top 10 audit → `docs/{date}/reviews/`
    - **Gate 3**: ≥ 90% — release readiness
    - spec-validator: Final scoring and approval → `docs/{date}/telemetry/`
 
@@ -127,7 +124,7 @@ The system follows a three-phase approach with quality gates:
 
 - spec-orchestrator: Execution controller — agent sequencing, gate enforcement, state tracking
 - spec-estimator: Pre-planning effort and complexity estimator (model: haiku)
-- spec-scanner: Read-only codebase analysis for existing projects (produces `codebase-context.md`, model: haiku)
+- spec-scanner: Read-only codebase analysis for every workflow run (produces `codebase-context.md`, model: haiku)
 - spec-analyst: Requirements analysis specialist (model: sonnet)
 - spec-architect: System architecture designer (model: opus)
 - spec-planner: Task breakdown and test planning (model: haiku)
@@ -191,7 +188,7 @@ project/
 │       └── telemetry/
 │           ├── validation-report.md   # Final Gate 3 validation scoring
 │           └── run-summary.md         # Workflow run telemetry
-├── codebase-context.md                # (existing mode only) codebase scan output
+├── codebase-context.md                # codebase scan output
 ├── workflow-state.json                # Orchestrator run state (resumable)
 ├── src/
 │   ├── components/                    # Reusable components
@@ -214,23 +211,15 @@ The `/agent-workflow` command provides one-command execution of the entire devel
 
 | Flag | Description |
 |------|-------------|
-| `--mode=greenfield\|existing` | New project vs. extending an existing codebase |
-| `--model-profile=prototype\|default\|enterprise` | Controls model selection and human checkpoints |
-| `--quality=N` | Override Gate 2 minimum threshold (default: 85) |
-| `--input-architecture=<path>` | Pre-existing ARCHITECTURE.md to pass to spec-architect |
-| `--input-requirements=<path>` | Pre-existing requirements doc to pass to spec-analyst |
-| `--input-adr=<path>` | ADR directory or file to enforce across all agents |
-| `--input-tech-stack=<path>` | Tech stack constraints file |
-| `--input-constraints=<path>` | Any additional constraint document |
-| `--skip-agent=<name>` | Skip a specific agent (comma-separated) |
-| `--phase=planning\|development\|validation` | Run only one phase |
+| `--no-hitl` | Skip estimate approval, refinement loops, and later sign-off pauses |
+| `--force-opus` | Force `opus` for all workflow sub-agents |
 
 ### Sub-Agent Chain Process
 
 The full pipeline managed by spec-orchestrator:
 
 ```
-spec-estimator → spec-scanner (existing mode) → spec-analyst → spec-architect → spec-planner
+spec-estimator → spec-scanner → spec-analyst → spec-architect → spec-planner
   → [Gate 1 ≥95%] → spec-developer → spec-tester
   → [Gate 2 ≥85%] → spec-reviewer → refactor-agent? → spec-security
   → [Gate 3 ≥90%] → spec-validator → spec-deployer → spec-documenter → DONE
@@ -262,21 +251,17 @@ spec-estimator → spec-scanner (existing mode) → spec-analyst → spec-archit
 
 - Copy all agents and slash command to project's `.claude/` directory
 - Provide clear project descriptions with constraints and requirements
-- Choose `--model-profile`: prototype (fast/cheap), default (recommended), enterprise (thorough)
-- For existing codebases, always use `--mode=existing` — this activates spec-scanner and pattern matching
+- Use `--force-opus` for especially high-stakes or ambiguous work
+- Use `--no-hitl` for faster autonomous runs when you do not need clarification pauses
 
 ### For Existing Codebases
 
-- Pass `--input-architecture=./ARCHITECTURE.md` if one exists
-- Pass `--input-adr=./docs/adrs/` to lock in Architecture Decision Records
-- Pass `--input-tech-stack=./docs/tech-stack.md` to prevent stack drift
 - spec-scanner will automatically detect conventions; review `codebase-context.md` before proceeding
+- Keep architecture docs, ADRs, and tech stack notes inside the repo so spec-scanner can discover them automatically
 
 ### For Customization
 
-- Adjust quality thresholds: `--quality=75` for quick iterations, `--quality=95` for critical systems
-- Skip agents for partial runs: `--skip-agent=spec-security` or `--skip-agent=spec-scanner`
-- Use `--phase=planning` to only generate specs without writing code
+- Combine `--no-hitl` and `--force-opus` when you want an autonomous run with maximum reasoning depth
 - Integrate `workflow-state.json` with CI/CD for resumable pipeline runs
 
 ## Troubleshooting

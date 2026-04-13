@@ -505,7 +505,7 @@ Remember: A good plan today is better than a perfect plan tomorrow. Focus on del
 ### Greenfield Mode (default)
 Create a full task breakdown for building all features from scratch.
 
-### Existing-Codebase Mode (`--mode=existing`)
+### Existing-Codebase Runs (scanner-informed)
 1. Read `codebase-context.md` to understand what already exists
 2. Tag every task with one of three types:
    - `[NEW]` — net-new file or module that doesn't exist

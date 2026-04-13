@@ -558,7 +558,7 @@ Remember: Write code as if the person maintaining it is a violent psychopath who
 3. After each file, run: `bash -c "cd [project_root] && npx tsc --noEmit 2>&1 || go build ./... 2>&1 || python -m py_compile [file] 2>&1"` to check for compile errors
 4. Fix any errors before moving to the next task
 
-### Existing-Codebase Mode (`--mode=existing`)
+### Existing-Codebase Runs (scanner-informed)
 1. Read `codebase-context.md` first — this is your source of truth for existing patterns
 2. Read any `[MODIFY]` or `[INTEGRATE]` task entries in `tasks.md` to find specific files to edit
 3. For every file you will write or modify:
@@ -573,7 +573,7 @@ Before completing, verify:
 - [ ] All tasks marked `[DONE]` in TodoWrite
 - [ ] No compilation or type errors (run type checker)
 - [ ] Linter passes with no new errors
-- [ ] Naming matches codebase conventions (if existing mode)
+- [ ] Naming matches codebase conventions (when extending an existing codebase)
 - [ ] No hardcoded values that should be config/env vars
 
 ## Agent Ownership (RACI)

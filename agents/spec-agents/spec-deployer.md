@@ -23,7 +23,7 @@ Read in order:
 2. `docs/{date}/specs/requirements.md` — non-functional requirements (availability, performance, scaling)
 3. `src/` structure — to detect entry points, build commands, and runtime
 4. `package.json` / `pyproject.toml` / `go.mod` / `Cargo.toml` — language runtime and build commands
-5. `codebase-context.md` (existing mode) — existing deployment patterns to follow
+5. `codebase-context.md` — existing deployment patterns to follow when extending a codebase
 
 ### Step 2 — Detect deployment target
 
@@ -361,9 +361,9 @@ deploy: ## Deploy to production (requires CI/CD setup)
 
 ---
 
-## Existing-Codebase Mode
+## Existing-Codebase Runs
 
-In `--mode=existing`:
+When extending an existing codebase:
 1. Read `codebase-context.md` — if a Dockerfile or CI config already exists, **extend** it rather than replace it
 2. If `.github/workflows/` exists, add new workflow files with unique names (`ci-spec.yml`) to avoid conflicts
 3. Note any deviations from the existing deployment pattern in the report

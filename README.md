@@ -171,7 +171,7 @@ The Spec Workflow System leverages Claude Code's Sub-Agents capability to create
    │   ├── spec-agents/
    │   │   ├── spec-orchestrator.md   # Execution controller
    │   │   ├── spec-estimator.md      # Pre-planning effort estimator
-   │   │   ├── spec-scanner.md        # Codebase analysis (existing mode)
+   │   │   ├── spec-scanner.md        # Codebase analysis (always runs)
    │   │   ├── spec-analyst.md        # Requirements analysis
    │   │   ├── spec-architect.md      # System architecture
    │   │   ├── spec-planner.md        # Task planning
