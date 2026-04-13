@@ -569,6 +569,11 @@ Contributions are welcome. Please:
 4. Test your agent with the orchestrator before submitting
 5. Submit a PR with a description of what the agent does and where it fits in the pipeline
 
+## Attribution
+
+This project was originally forked from [zhsama/claude-sub-agent](https://github.com/zhsama/claude-sub-agent) and was later detached into an independent repository.
+
+It has since been substantially modified, extended, and maintained independently. See [NOTICE](/Users/jpshook/Code/claude-agent-workflow/NOTICE) for provenance details.
 
 ## Acknowledgments
 
